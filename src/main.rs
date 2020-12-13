@@ -31,18 +31,42 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use rppal::gpio::{Gpio, Level};
+
 // The simple-signal crate is used to handle incoming signals.
 use simple_signal::{self, Signal};
 
-use rppal::gpio::Gpio;
+use structopt::StructOpt;
+
+
+#[derive(Debug, StructOpt)]
+struct Opt {
+    #[structopt(default_value = "800")]
+    steps: i64,
+
+    #[structopt(default_value = "3")]
+    period: f64,
+}
 
 // Gpio uses BCM pin numbering.
 const GPIO_PUL: u8 = 13;
 const GPIO_DIR: u8 = 16;
 
+fn gen_steps(opt: Opt) -> Vec<f64> {
+    let period = opt.period / std::f64::consts::TAU;
+    (0..opt.steps)
+        .map(|i| period * (((opt.steps - (i * 2 + 1)) as f64) / (opt.steps as f64)).acos())
+        .collect()
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    let opt = Opt::from_args();
+    println!("{:?}", opt);
+    let steps = gen_steps(opt);
     // Retrieve the GPIO pin and configure it as an output.
-    let mut pin = Gpio::new()?.get(GPIO_PUL)?.into_output();
+    let gpio = Gpio::new()?;
+    let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
+    let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
 
     let running = Arc::new(AtomicBool::new(true));
 
@@ -55,15 +79,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Blink pulse
-    while running.load(Ordering::SeqCst) {
-        pin.set_high();
-        thread::sleep(Duration::from_millis(1));
-        pin.set_low();
-        thread::sleep(Duration::from_millis(500));
+    'outer: loop {
+        for &level in &[Level::Low, Level::High] {
+            dir_pin.write(level);
+            thread::sleep(Duration::from_millis(500));
+            if !running.load(Ordering::SeqCst) {
+                break 'outer;
+            }
+            let mut x = 0.0;
+            for &nx in &steps {
+                pul_pin.set_high();
+                thread::sleep(Duration::from_micros(1));
+                pul_pin.set_low();
+                thread::sleep(Duration::from_secs_f64(nx - x));
+                x = nx;
+            }
+        }
     }
 
-    // After we're done blinking, turn the LED off.
-    pin.set_low();
+    pul_pin.set_low();
+    dir_pin.set_low();
 
     Ok(())
 
