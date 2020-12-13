@@ -29,7 +29,7 @@ use std::error::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use rppal::gpio::{Gpio, Level};
 
@@ -41,10 +41,10 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    #[structopt(default_value = "800")]
+    #[structopt(long, default_value = "800")]
     steps: i64,
 
-    #[structopt(default_value = "3")]
+    #[structopt(long, default_value = "3")]
     period: f64,
 }
 
@@ -82,18 +82,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     'outer: loop {
         for &level in &[Level::Low, Level::High] {
             dir_pin.write(level);
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(10));
             if !running.load(Ordering::SeqCst) {
                 break 'outer;
             }
-            let mut x = 0.0;
+            let min = Duration::from_micros(30);
+            let skip = Duration::from_micros(35);
+            let mut start = Instant::now();
+            let mut skips = 0;
             for &nx in &steps {
+                let target = Duration::from_secs_f64(nx);
+                let sofar = Instant::now() - start;
+                if target >= sofar + min {
+                    thread::sleep(target - sofar);
+                } else {
+                    thread::sleep(skip);
+                    start += sofar + skip - target;
+                    skips += 1;
+                }
                 pul_pin.set_high();
                 thread::sleep(Duration::from_micros(1));
                 pul_pin.set_low();
-                thread::sleep(Duration::from_secs_f64(nx - x));
-                x = nx;
             }
+            println!("skips: {}", skips);
         }
     }
 
