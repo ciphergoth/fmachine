@@ -2,11 +2,11 @@ use std::cmp;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicI8, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Result;
 
-use rppal::gpio::{Gpio, Level};
+use rppal::gpio::Gpio;
 
 // The simple-signal crate is used to handle incoming signals.
 use simple_signal::{self, Signal};
@@ -92,7 +92,15 @@ fn main() -> Result<()> {
         sleep_us: AtomicU64::new(300000),
         offset_steps: AtomicI64::new(0),
     });
+    simple_signal::set_handler(&[Signal::Int, Signal::Term], {
+        let fooble = fooble.clone();
+        move |_| {
+            fooble.run.store(false, Ordering::Relaxed);
+        }
+    });
+
     drive_motor(fooble)?;
+    println!("Finished successfully");
 
     Ok(())
 }
