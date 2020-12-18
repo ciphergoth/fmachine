@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.35"
+evdev-rs = "0.4.0"
 rppal = "0.11.3"
 simple-signal = "1.1.1"
 structopt = "0.3.21"
