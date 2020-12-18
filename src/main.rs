@@ -17,10 +17,10 @@ struct Opt {
     #[structopt(long, default_value = "800")]
     steps: i64,
 
-    #[structopt(long, default_value = "20")]
+    #[structopt(long, default_value = "200")]
     accel: f64,
 
-    #[structopt(long, default_value = "100")]
+    #[structopt(long, default_value = "1000")]
     velocity_hz: f64,
 }
 
@@ -31,9 +31,7 @@ const GPIO_PUL: u8 = 13;
 const PULSE_DURATION_US: u64 = 1;
 const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 
-fn main() -> Result<()> {
-    let opt = Opt::from_args();
-    println!("{:?}", opt);
+fn run(opt: Opt) -> Result<()> {
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     //let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
@@ -62,10 +60,18 @@ fn main() -> Result<()> {
         pul_pin.set_high();
         thread::sleep(PULSE_DURATION);
         pul_pin.set_low();
-        thread::sleep(Duration::from_secs_f64(pulse_width));
+        thread::sleep(Duration::from_secs_f64(pulse_width - 0.000001 * (PULSE_DURATION_US as f64)));
         //println!("{} {} {}", i, pulse_width, velocity_hz);
     }
     println!("Finished successfully");
+    Ok(())
+}
 
+fn main() -> Result<()> {
+    let opt = Opt::from_args();
+    println!("{:?}", opt);
+    let handle: thread::JoinHandle<Result<()>> = thread::spawn(move || {run(opt)});
+    handle.join().unwrap()?;
+    println!("Finished successfully");
     Ok(())
 }
