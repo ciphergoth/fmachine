@@ -1,6 +1,6 @@
-use std::cmp;
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicI8, AtomicU64, Ordering};
-use std::sync::Arc;
+//use std::cmp;
+//use std::sync::atomic::{AtomicBool, AtomicI64, AtomicI8, AtomicU64, Ordering};
+//use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -8,8 +8,7 @@ use anyhow::Result;
 
 use rppal::gpio::Gpio;
 
-// The simple-signal crate is used to handle incoming signals.
-use simple_signal::{self, Signal};
+//use simple_signal::{self, Signal};
 
 use structopt::StructOpt;
 
@@ -18,88 +17,54 @@ struct Opt {
     #[structopt(long, default_value = "800")]
     steps: i64,
 
-    #[structopt(long, default_value = "3")]
-    period: f64,
+    #[structopt(long, default_value = "20")]
+    accel: f64,
+
+    #[structopt(long, default_value = "100")]
+    velocity_hz: f64,
 }
 
 // Gpio uses BCM pin numbering.
 const GPIO_PUL: u8 = 13;
-const GPIO_DIR: u8 = 16;
-
-#[derive(Debug)]
-struct Fooble {
-    run: AtomicBool,
-    direction: AtomicI8,
-    sleep_us: AtomicU64,
-    offset_steps: AtomicI64,
-}
+//const GPIO_DIR: u8 = 16;
 
 const PULSE_DURATION_US: u64 = 1;
-const SLEEP_MIN_US: u64 = 100;
-const SLEEP_MAX_US: u64 = 5000;
-const SLEEP_STEP_US: u64 = 3000;
 const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
-
-fn drive_motor(fooble: Arc<Fooble>) -> Result<()> {
-    let gpio = Gpio::new()?;
-    let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
-    let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
-
-    let mut dir = 0;
-    let mut sofar = 0;
-    let mut last_pulse = 0;
-    while fooble.run.load(Ordering::Relaxed) {
-        let ndir = fooble.direction.load(Ordering::Relaxed);
-        if dir != ndir {
-            if ndir == -1 {
-                dir_pin.set_high();
-            } else if ndir == 1 {
-                dir_pin.set_low();
-            }
-            dir = ndir;
-        }
-        let sleep = last_pulse + fooble.sleep_us.load(Ordering::Relaxed) - sofar;
-        if sleep >= SLEEP_MAX_US {
-            thread::sleep(Duration::from_micros(SLEEP_STEP_US));
-            sofar += SLEEP_STEP_US;
-        } else {
-            thread::sleep(Duration::from_micros(
-                cmp::max(SLEEP_MIN_US, sleep) - PULSE_DURATION_US,
-            ));
-            if dir == 0 {
-                thread::sleep(PULSE_DURATION);
-            } else {
-                pul_pin.set_high();
-                thread::sleep(PULSE_DURATION);
-                pul_pin.set_low();
-                fooble.offset_steps.fetch_add(dir as i64, Ordering::Relaxed);
-            }
-            sofar += sleep;
-            last_pulse = sofar;
-        }
-    }
-    pul_pin.set_low();
-    dir_pin.set_low();
-    Ok(())
-}
 
 fn main() -> Result<()> {
     let opt = Opt::from_args();
     println!("{:?}", opt);
-    let fooble = Arc::new(Fooble {
-        run: AtomicBool::new(true),
-        direction: AtomicI8::new(1),
-        sleep_us: AtomicU64::new(300000),
-        offset_steps: AtomicI64::new(0),
-    });
-    simple_signal::set_handler(&[Signal::Int, Signal::Term], {
-        let fooble = fooble.clone();
-        move |_| {
-            fooble.run.store(false, Ordering::Relaxed);
-        }
-    });
+    let gpio = Gpio::new()?;
+    let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
+    //let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
 
-    drive_motor(fooble)?;
+    let mut velocity_hz = 0.0;
+    let mut pulse_width = (2.0/opt.accel).sqrt();
+    for i in (0..opt.steps).rev() {
+        let mut new_vel = velocity_hz + opt.accel * pulse_width;
+        // Remember to fix this when we can change velocity, to avoid sudden deceleration
+        if new_vel > opt.velocity_hz {
+            new_vel = opt.velocity_hz;
+        }
+        velocity_hz = if new_vel * new_vel / opt.accel < (i*2) as f64 {
+            new_vel
+        } else {
+            velocity_hz - opt.accel * pulse_width
+        };
+        if velocity_hz <= 1.0 {
+            println!("{} {}", i, velocity_hz);
+            break;
+        }
+        pulse_width = 1.0/velocity_hz;
+        if pulse_width < 0.0001 {
+            pulse_width = 0.0001;
+        }
+        pul_pin.set_high();
+        thread::sleep(PULSE_DURATION);
+        pul_pin.set_low();
+        thread::sleep(Duration::from_secs_f64(pulse_width));
+        //println!("{} {} {}", i, pulse_width, velocity_hz);
+    }
     println!("Finished successfully");
 
     Ok(())
