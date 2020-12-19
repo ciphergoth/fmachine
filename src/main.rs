@@ -28,6 +28,7 @@ const GPIO_PUL: u8 = 13;
 
 const PULSE_DURATION_US: u64 = 1;
 const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
+const MIN_T: f64 = 0.0001;
 
 fn device(opt: Opt) -> Result<()> {
     let gpio = Gpio::new()?;
@@ -35,31 +36,30 @@ fn device(opt: Opt) -> Result<()> {
     //let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
 
     let mut velocity_hz = 0.0;
-    let mut pulse_width = (2.0 / opt.accel).sqrt();
+    let mut t = (2.0 / opt.accel).sqrt();
     for i in (0..opt.steps).rev() {
-        let mut new_vel = velocity_hz + opt.accel * pulse_width;
-        // Remember to fix this when we can change velocity, to avoid sudden deceleration
-        if new_vel > opt.velocity_hz {
-            new_vel = opt.velocity_hz;
-        }
-        velocity_hz = if new_vel * new_vel / opt.accel < (i * 2) as f64 {
-            new_vel
+        let max_delta_v = opt.accel * t;
+        let delta_v = (opt.velocity_hz - velocity_hz).min(max_delta_v).max(-max_delta_v);
+        let new_vel = velocity_hz + delta_v;
+        let delta_v = if new_vel * new_vel / opt.accel < (i * 2) as f64 {
+            delta_v
         } else {
-            velocity_hz - opt.accel * pulse_width
+            -max_delta_v
         };
+        velocity_hz += delta_v;
         if velocity_hz <= 1.0 {
             println!("{} {}", i, velocity_hz);
             break;
         }
-        pulse_width = 1.0 / velocity_hz;
-        if pulse_width < 0.0001 {
-            pulse_width = 0.0001;
+        t = (1.0 + delta_v * t / 2.0) / velocity_hz;
+        if t < MIN_T { // this should never happen
+            t = MIN_T;
         }
         pul_pin.set_high();
         thread::sleep(PULSE_DURATION);
         pul_pin.set_low();
         thread::sleep(Duration::from_secs_f64(
-            pulse_width - 0.000001 * (PULSE_DURATION_US as f64),
+            t - 0.000001 * (PULSE_DURATION_US as f64),
         ));
         //println!("{} {} {}", i, pulse_width, velocity_hz);
     }
