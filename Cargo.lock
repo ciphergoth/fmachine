@@ -88,6 +88,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "evdev-rs",
+ "libc",
  "rppal",
  "simple-signal",
  "structopt",

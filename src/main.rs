@@ -1,4 +1,5 @@
-use std::fs::File;
+use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -96,7 +97,10 @@ fn joystick(opt: Opt) -> Result<()> {
         thread::spawn(move || device(ctrl))
     };
 
-    let fd = File::open("/dev/input/event0")?;
+    let fd = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_fd(fd)?;
     while run.load(Ordering::Relaxed) {
         let a = ev_device.next_event(evdev_rs::ReadFlag::NORMAL);
