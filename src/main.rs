@@ -12,14 +12,18 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    #[structopt(long, default_value = "800")]
-    steps: i64,
-
     #[structopt(long, default_value = "200")]
-    accel: f64,
+    max_accel: f64,
 
     #[structopt(long, default_value = "1000")]
-    velocity_hz: f64,
+    max_velocity: f64,
+}
+
+#[derive(Debug)]
+struct Control {
+    target_velocity: AtomicU64,
+    accel: AtomicU64,
+
 }
 
 // Gpio uses BCM pin numbering.
@@ -29,19 +33,24 @@ const GPIO_PUL: u8 = 13;
 const PULSE_DURATION_US: u64 = 1;
 const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 const MIN_T: f64 = 0.0001;
+const STEPS: u64 = 1600;
+const CONTROL_FACTOR: f64 = 0.001;
 
-fn device(opt: Opt) -> Result<()> {
+fn device(ctrl: Arc<Control>) -> Result<()> {
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     //let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
 
     let mut velocity_hz = 0.0;
-    let mut t = (2.0 / opt.accel).sqrt();
-    for i in (0..opt.steps).rev() {
-        let max_delta_v = opt.accel * t;
-        let delta_v = (opt.velocity_hz - velocity_hz).min(max_delta_v).max(-max_delta_v);
+    let accel = ctrl.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR;
+    let mut t = (2.0 / accel).sqrt();
+    for i in (0..STEPS).rev() {
+        let target_velocity = ctrl.target_velocity.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR;
+        let accel = ctrl.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR;
+        let max_delta_v = accel * t;
+        let delta_v = (target_velocity - velocity_hz).min(max_delta_v).max(-max_delta_v);
         let new_vel = velocity_hz + delta_v;
-        let delta_v = if new_vel * new_vel / opt.accel < (i * 2) as f64 {
+        let delta_v = if new_vel * new_vel / accel < (i * 2) as f64 {
             delta_v
         } else {
             -max_delta_v
@@ -85,8 +94,15 @@ fn joystick(run: Arc<AtomicBool>) -> Result<()> {
 fn main() -> Result<()> {
     let opt = Opt::from_args();
     println!("{:?}", opt);
+    let ctrl = Arc::new(Control {
+        target_velocity: AtomicU64::new((opt.max_velocity / CONTROL_FACTOR) as u64),
+        accel: AtomicU64::new((opt.max_accel / CONTROL_FACTOR) as u64)
+    });
     let run = Arc::new(AtomicBool::new(true));
-    let device_thread = thread::spawn(move || device(opt));
+    let device_thread = {
+        let ctrl = ctrl.clone();
+        thread::spawn(move || device(ctrl))
+    };
 
     let joystick_thread = {
         let run = run.clone();
