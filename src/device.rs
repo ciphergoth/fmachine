@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -10,8 +10,8 @@ use rppal::gpio::{Gpio, Level};
 pub struct Control {
     pub run: AtomicBool,
     pub ends: [AtomicI64; 2],
-    pub target_velocity: AtomicU64,
-    pub accel: AtomicU64,
+    pub target_velocity: AtomicI64,
+    pub accel: AtomicI64,
 }
 
 pub const CONTROL_FACTOR: f64 = 0.001;

@@ -1,6 +1,6 @@
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -27,8 +27,8 @@ fn joystick(opt: Opt) -> Result<()> {
     let ctrl = Arc::new(device::Control {
         run: AtomicBool::new(true),
         ends: [AtomicI64::new(400), AtomicI64::new(-400)],
-        target_velocity: AtomicU64::new((opt.max_velocity / device::CONTROL_FACTOR) as u64),
-        accel: AtomicU64::new((opt.max_accel / device::CONTROL_FACTOR) as u64),
+        target_velocity: AtomicI64::new((opt.max_velocity / device::CONTROL_FACTOR) as i64),
+        accel: AtomicI64::new((opt.max_accel / device::CONTROL_FACTOR) as i64),
     });
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
         let ctrl = ctrl.clone();
@@ -59,7 +59,7 @@ fn joystick(opt: Opt) -> Result<()> {
                         .min(opt.max_velocity);
                     println!("val: {} target_velocity: {}", k.1.value, target_velocity);
                     ctrl.target_velocity
-                        .store((target_velocity / device::CONTROL_FACTOR) as u64, Ordering::Relaxed);
+                        .store((target_velocity / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
                 }
             }
             Err(e) => {
