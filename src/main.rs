@@ -1,21 +1,31 @@
-use evdev_rs::Device;
-use std::fs::File;
+use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
 
-fn main() -> ! {
-    let f = File::open("/dev/input/event0").unwrap();
+use anyhow::Result;
+use tokio::io::unix::AsyncFd;
+use tokio::io::Interest;
 
-    let mut d = Device::new().unwrap();
-    d.set_fd(f).unwrap();
-    
+#[tokio::main]
+pub async fn main() -> Result<()> {
+    let fd = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open("/dev/input/event0")?;
+    let ev_device = evdev_rs::Device::new_from_fd(fd)?;
+    let afd = AsyncFd::with_interest(ev_device.fd().unwrap(), Interest::READABLE)?;
     loop {
-        let a = d.next_event(evdev_rs::ReadFlag::NORMAL | evdev_rs::ReadFlag::BLOCKING);
+        let mut guard = afd.readable().await?;
+
+        let a = ev_device.next_event(evdev_rs::ReadFlag::NORMAL);
         match a {
-            Ok(k) => println!("Event: time {}.{}, ++++++++++++++++++++ {} +++++++++++++++",
-                              k.1.time.tv_sec,
-                              k.1.time.tv_usec,
-                              k.1.event_type),
-            Err(e) => (),
+            Ok(k) => {
+                println!("Event: {:?}", k.1);
+                guard.retain_ready();
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                guard.clear_ready();
+            }
         }
     }
 }
-
