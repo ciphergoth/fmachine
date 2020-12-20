@@ -2,7 +2,7 @@ use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::os::unix::fs::OpenOptionsExt;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use tokio::io::unix::AsyncFd;
 use tokio::io::Interest;
 
@@ -13,7 +13,10 @@ pub async fn main() -> Result<()> {
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_fd(fd)?;
-    let afd = AsyncFd::with_interest(ev_device.fd().unwrap(), Interest::READABLE)?;
+    let afd = AsyncFd::with_interest(
+        ev_device.fd().ok_or_else(|| anyhow!("wtf"))?,
+        Interest::READABLE,
+    )?;
     loop {
         let mut guard = afd.readable().await?;
 
