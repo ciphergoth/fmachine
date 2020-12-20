@@ -1,4 +1,5 @@
 use std::fs::OpenOptions;
+use std::io::ErrorKind;
 use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::Result;
@@ -22,9 +23,13 @@ pub async fn main() -> Result<()> {
                 println!("Event: {:?}", k.1);
                 guard.retain_ready();
             }
-            Err(e) => {
-                println!("{:?}", e);
+            Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                println!("would block");
                 guard.clear_ready();
+            }
+            not_ok => {
+                println!("boom");
+                not_ok?;
             }
         }
     }
