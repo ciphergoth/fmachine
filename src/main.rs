@@ -4,8 +4,22 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
+use evdev_rs::TimeVal;
 use tokio::io::Interest;
 use tokio::{io::unix::AsyncFd, time};
+
+fn timeval_now() -> std::io::Result<TimeVal> {
+    let mut t = libc::timeval {
+        tv_sec: 0,
+        tv_usec: 0,
+    };
+    let res = unsafe { libc::gettimeofday(&mut t, std::ptr::null_mut()) };
+    if res == 0 {
+        Ok(TimeVal::from_raw(&t))
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
@@ -41,7 +55,7 @@ pub async fn main() -> Result<()> {
                 }
             }
             _ = interval.tick() => {
-                println!("tick");
+                println!("tick {:?}", timeval_now()?);
             }
         }
     }
