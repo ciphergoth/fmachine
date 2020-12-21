@@ -21,9 +21,13 @@ fn timeval_now() -> std::io::Result<TimeVal> {
     }
 }
 
+fn timeval_diff_as_f64(a: &TimeVal, b: &TimeVal) -> f64 {
+    (a.tv_sec as f64) - (b.tv_sec as f64) + 0.000001 * ((a.tv_usec as f64) - (b.tv_usec as f64))
+}
+
 #[tokio::main]
 pub async fn main() -> Result<()> {
-    let mut interval = time::interval(Duration::from_secs(1));
+    let mut interval = time::interval(Duration::from_millis(17));
     let fd = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
@@ -33,6 +37,8 @@ pub async fn main() -> Result<()> {
         ev_device.fd().ok_or_else(|| anyhow!("wtf"))?,
         Interest::READABLE,
     )?;
+    let mut value = 0.0;
+    let mut last_read = None;
     loop {
         tokio::select! {
             r = afd.readable() => {
@@ -41,11 +47,20 @@ pub async fn main() -> Result<()> {
                 let a = ev_device.next_event(evdev_rs::ReadFlag::NORMAL);
                 match a {
                     Ok(k) => {
-                        println!("Event: {:?}", k.1);
                         guard.retain_ready();
+                        //println!("Event: {:?}", k.1);
+                        if k.1.event_code == evdev_rs::enums::EventCode::EV_ABS(
+                            evdev_rs::enums::EV_ABS::ABS_X
+                        ) {
+                            if let Some((t, v)) = last_read {
+                                value += v as f64 * timeval_diff_as_f64(&k.1.time, &t);
+                            }
+                            last_read = Some((k.1.time, k.1.value));
+                            println!("value: {}", value);
+                        }
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                        println!("would block");
+                        //println!("would block");
                         guard.clear_ready();
                     }
                     not_ok => {
@@ -55,7 +70,13 @@ pub async fn main() -> Result<()> {
                 }
             }
             _ = interval.tick() => {
-                println!("tick {:?}", timeval_now()?);
+                let now = timeval_now()?;
+                //println!("tick {:?}", now);
+                if let Some((t, v)) = last_read {
+                    value += v as f64 * timeval_diff_as_f64(&now, &t);
+                    println!("value: {}", value);
+                    last_read = Some((now, v));
+                }
             }
         }
     }
