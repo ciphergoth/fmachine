@@ -27,17 +27,23 @@ fn timeval_diff_as_f64(a: &TimeVal, b: &TimeVal) -> f64 {
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
-    let mut interval = time::interval(Duration::from_millis(17));
+    let mut interval = time::interval(Duration::from_millis(50));
     let fd = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_fd(fd)?;
+    let abs_x = evdev_rs::enums::EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_X);
+    let ai = ev_device.abs_info(&abs_x).ok_or_else(|| anyhow!("wtf"))?;
+    println!(
+        " min {} max {} fuzz {} flat {} res {}",
+        ai.minimum, ai.maximum, ai.fuzz, ai.flat, ai.resolution
+    );
     let afd = AsyncFd::with_interest(
         ev_device.fd().ok_or_else(|| anyhow!("wtf"))?,
         Interest::READABLE,
     )?;
-    let mut value = 0.0;
+    let mut driven = 0.0;
     let mut last_read = None;
     loop {
         tokio::select! {
@@ -49,14 +55,17 @@ pub async fn main() -> Result<()> {
                     Ok(k) => {
                         guard.retain_ready();
                         //println!("Event: {:?}", k.1);
-                        if k.1.event_code == evdev_rs::enums::EventCode::EV_ABS(
-                            evdev_rs::enums::EV_ABS::ABS_X
-                        ) {
+                        if k.1.event_code == abs_x {
                             if let Some((t, v)) = last_read {
-                                value += v as f64 * timeval_diff_as_f64(&k.1.time, &t);
+                                driven += v as f64 * timeval_diff_as_f64(&k.1.time, &t);
                             }
-                            last_read = Some((k.1.time, k.1.value));
-                            println!("value: {}", value);
+                            let new_v = if k.1.value <= ai.flat && k.1.value >= -ai.flat {
+                                0
+                            } else {
+                                k.1.value
+                            };
+                            last_read = Some((k.1.time, new_v));
+                            //println!("driven: {} stick {} new_v {}", driven, k.1.value, new_v);
                         }
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => {
@@ -73,8 +82,8 @@ pub async fn main() -> Result<()> {
                 let now = timeval_now()?;
                 //println!("tick {:?}", now);
                 if let Some((t, v)) = last_read {
-                    value += v as f64 * timeval_diff_as_f64(&now, &t);
-                    println!("value: {}", value);
+                    driven += v as f64 * timeval_diff_as_f64(&now, &t);
+                    println!("driven: {}", driven);
                     last_read = Some((now, v));
                 }
             }
