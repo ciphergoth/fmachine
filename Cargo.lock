@@ -45,8 +45,6 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "evdev-rs"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b92abc30d5fd1e4f6440dee4d626abc68f4a9b5014dc1de575901e23c2e02321"
 dependencies = [
  "bitflags",
  "evdev-sys",
@@ -57,8 +55,6 @@ dependencies = [
 [[package]]
 name = "evdev-sys"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c6aa4e801c7267f2f66c9efd5c4071ba8ca9d7d9de515bb09a14bbe6f639ed1"
 dependencies = [
  "cc",
  "libc",

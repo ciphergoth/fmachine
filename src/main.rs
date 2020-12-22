@@ -16,7 +16,7 @@ pub async fn main() -> Result<()> {
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
-    let ev_device = evdev_rs::Device::new_from_fd(fd)?;
+    let ev_device = evdev_rs::Device::new_from_file(fd)?;
     let abs_x = evdev_rs::enums::EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_X);
     let ai = ev_device.abs_info(&abs_x).ok_or_else(|| anyhow!("wtf"))?;
     println!(
@@ -24,7 +24,7 @@ pub async fn main() -> Result<()> {
         ai.minimum, ai.maximum, ai.fuzz, ai.flat, ai.resolution
     );
     let afd = AsyncFd::with_interest(
-        ev_device.fd().ok_or_else(|| anyhow!("wtf"))?,
+        ev_device,
         Interest::READABLE,
     )?;
     let mut driven = 0.0;
@@ -34,7 +34,7 @@ pub async fn main() -> Result<()> {
             r = afd.readable() => {
                 let mut guard = r?;
 
-                let a = ev_device.next_event(evdev_rs::ReadFlag::NORMAL);
+                let a = afd.get_ref().next_event(evdev_rs::ReadFlag::NORMAL);
                 match a {
                     Ok(k) => {
                         guard.retain_ready();
