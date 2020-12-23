@@ -21,9 +21,11 @@ impl Axis {
     fn new(ev_device: &evdev_rs::Device, event_code: evdev_rs::enums::EventCode) -> Result<Axis> {
         Ok(Axis {
             event_code,
-            abs_info: ev_device.abs_info(&event_code).ok_or_else(|| anyhow!("wtf"))?,
+            abs_info: ev_device
+                .abs_info(&event_code)
+                .ok_or_else(|| anyhow!("wtf"))?,
             driven: 0.0,
-            last_read: None
+            last_read: None,
         })
     }
 
@@ -38,7 +40,10 @@ impl Axis {
                 event.value
             };
             self.last_read = Some((event.time, new_v));
-            println!("driven: {} stick {} new_v {}", self.driven, event.value, new_v);
+            println!(
+                "driven: {} stick {} new_v {}",
+                self.driven, event.value, new_v
+            );
         }
     }
 
@@ -59,16 +64,12 @@ pub async fn main() -> Result<()> {
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_file(fd)?;
-    let mut xaxis = Axis::new(&ev_device,
-        evdev_rs::enums::EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_X))?;
-    println!(
-        " min {} max {} fuzz {} flat {} res {}",
-        xaxis.abs_info.minimum, xaxis.abs_info.maximum, xaxis.abs_info.fuzz, xaxis.abs_info.flat, xaxis.abs_info.resolution
-    );
-    let afd = AsyncFd::with_interest(
-        ev_device,
-        Interest::READABLE,
+    let mut xaxis = Axis::new(
+        &ev_device,
+        evdev_rs::enums::EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_X),
     )?;
+    println!("{:?}", xaxis);
+    let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     loop {
         tokio::select! {
             r = afd.readable() => {
