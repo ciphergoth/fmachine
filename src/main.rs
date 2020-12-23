@@ -29,17 +29,23 @@ impl Axis {
         })
     }
 
+    fn handle_change(&mut self, now: evdev_rs::TimeVal, new_v: Option<i32>) {
+        if let Some((t, v)) = self.last_read {
+            self.driven += v as f64 * timeval::diff_as_f64(&now, &t) / self.abs_info.maximum as f64;
+            self.last_read = Some((now, new_v.unwrap_or(v)));
+        } else if let Some(new_v) = new_v {
+            self.last_read = Some((now, new_v));
+        }
+    }
+
     fn handle_event(&mut self, event: &evdev_rs::InputEvent) {
         if event.event_code == self.event_code {
-            if let Some((t, v)) = self.last_read {
-                self.driven += v as f64 * timeval::diff_as_f64(&event.time, &t);
-            }
             let new_v = if event.value <= self.abs_info.flat && event.value >= -self.abs_info.flat {
-                0
+                 0
             } else {
                 event.value
             };
-            self.last_read = Some((event.time, new_v));
+            self.handle_change(event.time, Some(new_v));
             println!(
                 "driven: {} stick {} new_v {}",
                 self.driven, event.value, new_v
@@ -48,11 +54,8 @@ impl Axis {
     }
 
     fn handle_tick(&mut self, now: evdev_rs::TimeVal) {
-        if let Some((t, v)) = self.last_read {
-            self.driven += v as f64 * timeval::diff_as_f64(&now, &t);
-            println!("driven: {}", self.driven);
-            self.last_read = Some((now, v));
-        }
+        self.handle_change(now, None);
+        println!("driven: {}", self.driven);
     }
 }
 
