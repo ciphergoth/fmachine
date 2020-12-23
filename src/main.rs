@@ -11,7 +11,7 @@ mod joystick;
 mod timeval;
 
 #[derive(Debug, StructOpt)]
-struct Opt {
+pub struct Opt {
     #[structopt(long, default_value = "200")]
     max_accel: f64,
 
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     let ctrl = Arc::new(device::Control {
         run: AtomicBool::new(true),
         ends: [AtomicI64::new(400), AtomicI64::new(-400)],
-        target_velocity: AtomicI64::new((opt.max_velocity / device::CONTROL_FACTOR) as i64),
+        target_velocity: AtomicI64::new(0),
         accel: AtomicI64::new((opt.max_accel / device::CONTROL_FACTOR) as i64),
     });
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
         let ctrl = ctrl.clone();
         thread::spawn(move || device::device(ctrl))
     };
-    joystick::main_loop(ctrl.clone())?;
+    joystick::main_loop(opt, ctrl.clone())?;
     println!("Run is false, stopping");
     ctrl.target_velocity.store(0, Ordering::Relaxed);
     device_thread.join().unwrap()?;

@@ -10,8 +10,9 @@ use evdev_rs::enums::EV_ABS;
 use tokio::io::Interest;
 use tokio::{io::unix::AsyncFd, time};
 
-use crate::device::Control;
+use crate::device;
 use crate::timeval;
+use crate::Opt;
 
 #[derive(Debug)]
 struct AxisSpec {
@@ -77,7 +78,7 @@ impl Axis {
 }
 
 #[tokio::main]
-pub async fn main_loop(ctrl: Arc<Control>) -> Result<()> {
+pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let fd = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
@@ -105,14 +106,16 @@ pub async fn main_loop(ctrl: Arc<Control>) -> Result<()> {
         AxisSpec {
             abs: EV_ABS::ABS_RY,
             min: 0.0,
-            max: 400.0,
+            max: opt.max_velocity,
             time_to_max_s: -5.0,
         },
     ]
     .into_iter()
     .map(|spec| Axis::new(spec, &ev_device))
     .collect::<Result<Vec<_>, _>>()?;
+    axes[3].driven = opt.max_velocity; 
     println!("{:?}", axes);
+    let mut drive = false;
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
     while ctrl.run.load(Ordering::Relaxed) {
@@ -125,6 +128,14 @@ pub async fn main_loop(ctrl: Arc<Control>) -> Result<()> {
                         guard.retain_ready();
                         for ax in &mut axes {
                             ax.handle_event(&k.1);
+                        }
+                        if k.1.event_code == evdev_rs::enums::EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) {
+                            if k.1.value == 1 {
+                                drive = true;
+                            } else {
+                                drive = false;
+                                ctrl.target_velocity.store(0, Ordering::Relaxed);
+                            }
                         }
                         println!("Event: {:?}", k.1);
                     }
@@ -146,7 +157,10 @@ pub async fn main_loop(ctrl: Arc<Control>) -> Result<()> {
                 }
                 // Triangular clamp on stroke length
                 axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
-                println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven)
+                println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
+                if drive {
+                    ctrl.target_velocity.store((axes[3].driven.min(opt.max_velocity) / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
+                }
             }
         }
     }
