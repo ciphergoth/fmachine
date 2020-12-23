@@ -15,8 +15,14 @@ pub struct Opt {
     #[structopt(long, default_value = "200")]
     max_accel: f64,
 
+    #[structopt(long, default_value = "20")]
+    min_velocity: f64,
+
     #[structopt(long, default_value = "1000")]
     max_velocity: f64,
+
+    #[structopt(long, default_value = "400")]
+    max_pos: i64,
 }
 
 fn main() -> Result<()> {
@@ -24,7 +30,7 @@ fn main() -> Result<()> {
     println!("{:?}", opt);
     let ctrl = Arc::new(device::Control {
         run: AtomicBool::new(true),
-        ends: [AtomicI64::new(400), AtomicI64::new(-400)],
+        ends: [AtomicI64::new(0), AtomicI64::new(0)],
         target_velocity: AtomicI64::new(0),
         accel: AtomicI64::new((opt.max_accel / device::CONTROL_FACTOR) as i64),
     });

@@ -87,14 +87,14 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let mut axes = vec![
         AxisSpec {
             abs: EV_ABS::ABS_X,
-            min: -400.0,
-            max: 400.0,
+            min: -opt.max_pos as f64,
+            max: opt.max_pos as f64,
             time_to_max_s: 5.0,
         },
         AxisSpec {
             abs: EV_ABS::ABS_Y,
             min: 0.0,
-            max: 400.0,
+            max: opt.max_pos as f64,
             time_to_max_s: -5.0,
         },
         AxisSpec {
@@ -105,7 +105,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
         },
         AxisSpec {
             abs: EV_ABS::ABS_RY,
-            min: 0.0,
+            min: opt.min_velocity,
             max: opt.max_velocity,
             time_to_max_s: -5.0,
         },
@@ -162,9 +162,15 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 }
                 // Triangular clamp on stroke length
                 axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
-                //println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
+                println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
                 if drive {
-                    ctrl.target_velocity.store((axes[3].driven.min(opt.max_velocity) / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
+                    let ends = [((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
+                    ((axes[0].driven + axes[1].driven) as i64).min(opt.max_pos),];
+                    let target_velocity = axes[3].driven.min(opt.max_velocity);
+                    println!("{:?} {}", ends, target_velocity);
+                    ctrl.ends[0].store(ends[0], Ordering::Relaxed);
+                    ctrl.ends[1].store(ends[1], Ordering::Relaxed);
+                    ctrl.target_velocity.store((target_velocity / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
                 }
             }
         }

@@ -47,7 +47,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             continue;
         }
         dir_pin.write(if dir == 0 { Level::Low } else { Level::High });
-        let dir_mul = (dir as i64) * -2 + 1;
+        let dir_mul = (dir as i64) * 2 - 1;
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
         let accel = read_control(&ctrl.accel);
@@ -89,12 +89,14 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             pos += dir_mul;
             //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
-        let elapsed = start.elapsed().as_secs_f64();
-        println!("elapsed {} slept {} diff {} ratio {}",
-            elapsed, slept, elapsed - slept, elapsed/slept);
-        let ticks = (pos - start_pos) * dir_mul;
-        println!("ticks {} diff per tick {}", ticks,
-            (elapsed - slept)/(ticks as f64));
+        if slept > 0.3 {
+            let elapsed = start.elapsed().as_secs_f64();
+            println!("elapsed {} slept {} diff {} ratio {}",
+                elapsed, slept, elapsed - slept, elapsed/slept);
+            let ticks = (pos - start_pos) * dir_mul;
+            println!("ticks {} diff per tick {}", ticks,
+                (elapsed - slept)/(ticks as f64));
+        }
     }
     println!("Finished successfully");
     Ok(())
