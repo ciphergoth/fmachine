@@ -4,6 +4,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
+use evdev_rs::enums::EV_ABS;
 use tokio::io::Interest;
 use tokio::{io::unix::AsyncFd, time};
 
@@ -41,7 +42,7 @@ impl Axis {
     fn handle_event(&mut self, event: &evdev_rs::InputEvent) {
         if event.event_code == self.event_code {
             let new_v = if event.value <= self.abs_info.flat && event.value >= -self.abs_info.flat {
-                 0
+                0
             } else {
                 event.value
             };
@@ -67,11 +68,11 @@ pub async fn main() -> Result<()> {
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_file(fd)?;
-    let mut xaxis = Axis::new(
-        &ev_device,
-        evdev_rs::enums::EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_X),
-    )?;
-    println!("{:?}", xaxis);
+    let mut axes = vec![EV_ABS::ABS_X, EV_ABS::ABS_Y, EV_ABS::ABS_RX, EV_ABS::ABS_RY]
+        .into_iter()
+        .map(|a| Axis::new(&ev_device, evdev_rs::enums::EventCode::EV_ABS(a)))
+        .collect::<Result<Vec<_>, _>>()?;
+    println!("{:?}", axes);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     loop {
         tokio::select! {
@@ -82,8 +83,10 @@ pub async fn main() -> Result<()> {
                 match a {
                     Ok(k) => {
                         guard.retain_ready();
-                        xaxis.handle_event(&k.1);
-                        //println!("Event: {:?}", k.1);
+                        for ax in &mut axes {
+                            ax.handle_event(&k.1);
+                        }
+                        println!("Event: {:?}", k.1);
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => {
                         //println!("would block");
@@ -98,7 +101,9 @@ pub async fn main() -> Result<()> {
             _ = interval.tick() => {
                 let now = timeval::now()?;
                 //println!("tick {:?}", now);
-                xaxis.handle_tick(now);
+                for ax in &mut axes {
+                    ax.handle_tick(now);
+                }
             }
         }
     }
