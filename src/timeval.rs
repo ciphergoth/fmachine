@@ -14,6 +14,6 @@ pub fn now() -> std::io::Result<TimeVal> {
 }
 
 pub fn diff_as_f64(a: &TimeVal, b: &TimeVal) -> f64 {
-    (a.secs() as f64) - (b.secs() as f64) + 0.000001 * ((a.subsec_micros() as f64) - (b.subsec_micros() as f64))
+    (a.secs() as f64) - (b.secs() as f64)
+        + 0.000001 * ((a.subsec_micros() as f64) - (b.subsec_micros() as f64))
 }
-

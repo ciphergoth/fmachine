@@ -1,6 +1,8 @@
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::os::unix::fs::OpenOptionsExt;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
@@ -8,7 +10,9 @@ use evdev_rs::enums::EV_ABS;
 use tokio::io::Interest;
 use tokio::{io::unix::AsyncFd, time};
 
-mod timeval;
+use crate::device::Control;
+use crate::timeval;
+
 #[derive(Debug)]
 struct AxisSpec {
     abs: EV_ABS,
@@ -73,7 +77,7 @@ impl Axis {
 }
 
 #[tokio::main]
-pub async fn main() -> Result<()> {
+pub async fn main_loop(ctrl: Arc<Control>) -> Result<()> {
     let fd = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NONBLOCK)
@@ -111,7 +115,7 @@ pub async fn main() -> Result<()> {
     println!("{:?}", axes);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
-    loop {
+    while ctrl.run.load(Ordering::Relaxed) {
         tokio::select! {
             r = afd.readable() => {
                 let mut guard = r?;
@@ -146,4 +150,6 @@ pub async fn main() -> Result<()> {
             }
         }
     }
+    println!("Finished joystick loop");
+    Ok(())
 }

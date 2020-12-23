@@ -89,4 +89,3 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
     println!("Finished successfully");
     Ok(())
 }
-
