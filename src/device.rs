@@ -23,7 +23,13 @@ const GPIO_DIR: u8 = 16;
 const PULSE_DURATION_US: u64 = 1;
 const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 const DIR_SLEEP: Duration = Duration::from_micros(1000);
+const POLL_SLEEP: Duration = Duration::from_micros(50000);
+const MIN_VELOCITY: f64 = 1.0;
 const MIN_T: f64 = 0.0001;
+
+fn read_control(ct: &AtomicI64) -> f64 {
+    ct.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR
+}
 
 pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let gpio = Gpio::new()?;
@@ -33,17 +39,23 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let mut dir: usize = 0;
 
     while ctrl.run.load(Ordering::Relaxed) {
+        dir = 1 - dir;
+        let target_velocity = read_control(&ctrl.target_velocity);
+        if target_velocity <= MIN_VELOCITY {
+            dir_pin.set_low();
+            thread::sleep(POLL_SLEEP);
+            continue;
+        }
         dir_pin.write(if dir == 0 { Level::Low } else { Level::High });
         let dir_mul = (dir as i64) * -2 + 1;
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
-        let accel = ctrl.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR;
+        let accel = read_control(&ctrl.accel);
         let mut t = (2.0 / accel).sqrt();
         loop {
             let end = ctrl.ends[dir].load(Ordering::Relaxed);
-            let target_velocity =
-                ctrl.target_velocity.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR;
-            let accel = ctrl.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR;
+            let target_velocity = read_control(&ctrl.target_velocity);
+            let accel = read_control(&ctrl.accel);
             let max_delta_v = accel * t;
             let delta_v = (target_velocity - velocity_hz)
                 .min(max_delta_v)
@@ -55,7 +67,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
                 -max_delta_v
             };
             velocity_hz += delta_v;
-            if velocity_hz <= 1.0 {
+            if velocity_hz <= MIN_VELOCITY {
                 println!("{} {}", pos, velocity_hz);
                 break;
             }
@@ -73,7 +85,6 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             pos += dir_mul;
             //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
-        dir = 1 - dir;
     }
     println!("Finished successfully");
     Ok(())
