@@ -10,7 +10,7 @@ use rppal::gpio::{Gpio, Level};
 pub struct Control {
     pub run: AtomicBool,
     pub ends: [AtomicI64; 2],
-    pub target_velocity: AtomicI64,
+    pub target_velocity: [AtomicI64; 2],
     pub accel: AtomicI64,
 }
 
@@ -43,7 +43,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         dir = 1 - dir;
         let dir_mul = (dir as i64) * 2 - 1;
         let end = ctrl.ends[dir].load(Ordering::Relaxed);
-        let target_velocity = read_control(&ctrl.target_velocity);
+        let target_velocity = read_control(&ctrl.target_velocity[dir]);
         if target_velocity <= MIN_VELOCITY || (end - pos) * dir_mul <= MIN_DISTANCE {
             dir_pin.set_low();
             thread::sleep(POLL_SLEEP);
@@ -59,7 +59,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         let start = Instant::now();
         loop {
             let end = ctrl.ends[dir].load(Ordering::Relaxed);
-            let target_velocity = read_control(&ctrl.target_velocity);
+            let target_velocity = read_control(&ctrl.target_velocity[dir]);
             let accel = read_control(&ctrl.accel);
             let max_delta_v = accel * t;
             let delta_v = (target_velocity - velocity_hz)

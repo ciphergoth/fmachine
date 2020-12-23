@@ -131,7 +131,8 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                                 drive = true;
                             } else {
                                 drive = false;
-                                ctrl.target_velocity.store(0, Ordering::Relaxed);
+                                ctrl.target_velocity[0].store(0, Ordering::Relaxed);
+                                ctrl.target_velocity[1].store(0, Ordering::Relaxed);
                             }
                             for ax in &mut axes {
                                 ax.handle_tick(k.1.time);
@@ -166,11 +167,13 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 if drive {
                     let ends = [((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
                     ((axes[0].driven + axes[1].driven) as i64).min(opt.max_pos),];
-                    let target_velocity = axes[3].driven.min(opt.max_velocity);
+                    let target_velocity0 = (axes[3].driven * (1.0 + axes[2].driven).min(1.0)).min(opt.max_velocity);
+                    let target_velocity1 = (axes[3].driven * (1.0 - axes[2].driven).min(1.0)).min(opt.max_velocity);
                     //println!("{:?} {}", ends, target_velocity);
                     ctrl.ends[0].store(ends[0], Ordering::Relaxed);
                     ctrl.ends[1].store(ends[1], Ordering::Relaxed);
-                    ctrl.target_velocity.store((target_velocity / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
+                    ctrl.target_velocity[0].store((target_velocity0 / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
+                    ctrl.target_velocity[1].store((target_velocity1 / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
                 }
             }
         }
