@@ -113,7 +113,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     .into_iter()
     .map(|spec| Axis::new(spec, &ev_device, now))
     .collect::<Result<Vec<_>, _>>()?;
-    axes[3].driven = opt.max_velocity;
+    axes[3].driven = opt.init_velocity;
     println!("{:?}", axes);
     let mut drive = false;
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;

@@ -12,13 +12,16 @@ mod timeval;
 
 #[derive(Debug, StructOpt)]
 pub struct Opt {
-    #[structopt(long, default_value = "200")]
+    #[structopt(long, default_value = "2000")]
     max_accel: f64,
 
-    #[structopt(long, default_value = "20")]
+    #[structopt(long, default_value = "100")]
     min_velocity: f64,
 
     #[structopt(long, default_value = "1000")]
+    init_velocity: f64,
+
+    #[structopt(long, default_value = "10000")]
     max_velocity: f64,
 
     #[structopt(long, default_value = "400")]
