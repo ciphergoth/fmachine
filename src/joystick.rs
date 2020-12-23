@@ -29,11 +29,13 @@ struct Axis {
     per: f64,
     flat: i32,
     driven: f64,
-    last_read: Option<(evdev_rs::TimeVal, i32)>,
+    drive: bool,
+    last_time: evdev_rs::TimeVal,
+    last_value: i32,
 }
 
 impl Axis {
-    fn new(spec: AxisSpec, ev_device: &evdev_rs::Device) -> Result<Axis> {
+    fn new(spec: AxisSpec, ev_device: &evdev_rs::Device, now: evdev_rs::TimeVal) -> Result<Axis> {
         let event_code = evdev_rs::enums::EventCode::EV_ABS(spec.abs);
         let abs_info = ev_device
             .abs_info(&event_code)
@@ -46,34 +48,31 @@ impl Axis {
             per,
             flat,
             driven: 0.0,
-            last_read: None,
+            drive: false,
+            last_time: now,
+            last_value: 0,
         })
     }
 
-    fn handle_change(&mut self, now: evdev_rs::TimeVal, new_v: Option<i32>) {
-        if let Some((t, v)) = self.last_read {
-            self.driven += v as f64 * self.per * timeval::diff_as_f64(&now, &t);
+    fn handle_tick(&mut self, now: evdev_rs::TimeVal) {
+        if self.drive {
+            self.driven +=
+                self.last_value as f64 * self.per * timeval::diff_as_f64(&now, &self.last_time);
             self.driven = self.driven.max(self.spec.min).min(self.spec.max);
-            self.last_read = Some((now, new_v.unwrap_or(v)));
-        } else if let Some(new_v) = new_v {
-            self.last_read = Some((now, new_v));
         }
+        self.last_time = now;
     }
 
     fn handle_event(&mut self, event: &evdev_rs::InputEvent) {
         if event.event_code != evdev_rs::enums::EventCode::EV_ABS(self.spec.abs) {
             return;
         }
-        let new_v = if event.value <= self.flat && event.value >= -self.flat {
+        self.handle_tick(event.time);
+        self.last_value = if event.value <= self.flat && event.value >= -self.flat {
             0
         } else {
             event.value
         };
-        self.handle_change(event.time, Some(new_v));
-    }
-
-    fn handle_tick(&mut self, now: evdev_rs::TimeVal) {
-        self.handle_change(now, None);
     }
 }
 
@@ -84,6 +83,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_file(fd)?;
+    let now = timeval::now()?;
     let mut axes = vec![
         AxisSpec {
             abs: EV_ABS::ABS_X,
@@ -111,9 +111,9 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
         },
     ]
     .into_iter()
-    .map(|spec| Axis::new(spec, &ev_device))
+    .map(|spec| Axis::new(spec, &ev_device, now))
     .collect::<Result<Vec<_>, _>>()?;
-    axes[3].driven = opt.max_velocity; 
+    axes[3].driven = opt.max_velocity;
     println!("{:?}", axes);
     let mut drive = false;
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
@@ -126,15 +126,20 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 match a {
                     Ok(k) => {
                         guard.retain_ready();
-                        for ax in &mut axes {
-                            ax.handle_event(&k.1);
-                        }
                         if k.1.event_code == evdev_rs::enums::EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) {
                             if k.1.value == 1 {
                                 drive = true;
                             } else {
                                 drive = false;
                                 ctrl.target_velocity.store(0, Ordering::Relaxed);
+                            }
+                            for ax in &mut axes {
+                                ax.handle_tick(k.1.time);
+                                ax.drive = drive;
+                            }
+                        } else {
+                            for ax in &mut axes {
+                                ax.handle_event(&k.1);
                             }
                         }
                         println!("Event: {:?}", k.1);
