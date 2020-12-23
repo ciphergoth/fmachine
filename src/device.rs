@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::{sync::atomic::{AtomicBool, AtomicI64, Ordering}, time::Instant};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -52,6 +52,9 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         let mut velocity_hz = 0.0;
         let accel = read_control(&ctrl.accel);
         let mut t = (2.0 / accel).sqrt();
+        let start_pos = pos;
+        let mut slept = 0.0;
+        let start = Instant::now();
         loop {
             let end = ctrl.ends[dir].load(Ordering::Relaxed);
             let target_velocity = read_control(&ctrl.target_velocity);
@@ -82,9 +85,16 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             thread::sleep(Duration::from_secs_f64(
                 t - 0.000001 * (PULSE_DURATION_US as f64),
             ));
+            slept += t;
             pos += dir_mul;
             //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
+        let elapsed = start.elapsed().as_secs_f64();
+        println!("elapsed {} slept {} diff {} ratio {}",
+            elapsed, slept, elapsed - slept, elapsed/slept);
+        let ticks = (pos - start_pos) * dir_mul;
+        println!("ticks {} diff per tick {}", ticks,
+            (elapsed - slept)/(ticks as f64));
     }
     println!("Finished successfully");
     Ok(())

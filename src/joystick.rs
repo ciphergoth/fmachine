@@ -142,7 +142,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                                 ax.handle_event(&k.1);
                             }
                         }
-                        println!("Event: {:?}", k.1);
+                        //println!("Event: {:?}", k.1);
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => {
                         //println!("would block");
@@ -162,7 +162,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 }
                 // Triangular clamp on stroke length
                 axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
-                println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
+                //println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
                 if drive {
                     ctrl.target_velocity.store((axes[3].driven.min(opt.max_velocity) / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
                 }
