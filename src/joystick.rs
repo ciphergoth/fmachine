@@ -162,12 +162,12 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 }
                 // Triangular clamp on stroke length
                 axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
-                println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
+                //println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
                 if drive {
                     let ends = [((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
                     ((axes[0].driven + axes[1].driven) as i64).min(opt.max_pos),];
                     let target_velocity = axes[3].driven.min(opt.max_velocity);
-                    println!("{:?} {}", ends, target_velocity);
+                    //println!("{:?} {}", ends, target_velocity);
                     ctrl.ends[0].store(ends[0], Ordering::Relaxed);
                     ctrl.ends[1].store(ends[1], Ordering::Relaxed);
                     ctrl.target_velocity.store((target_velocity / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);

@@ -24,6 +24,7 @@ const PULSE_DURATION_US: u64 = 1;
 const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
+const MIN_DISTANCE: i64 = 2;
 const MIN_VELOCITY: f64 = 1.0;
 const MIN_T: f64 = 0.0001;
 
@@ -40,14 +41,15 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
 
     while ctrl.run.load(Ordering::Relaxed) {
         dir = 1 - dir;
+        let dir_mul = (dir as i64) * 2 - 1;
+        let end = ctrl.ends[dir].load(Ordering::Relaxed);
         let target_velocity = read_control(&ctrl.target_velocity);
-        if target_velocity <= MIN_VELOCITY {
+        if target_velocity <= MIN_VELOCITY || (end - pos) * dir_mul <= MIN_DISTANCE {
             dir_pin.set_low();
             thread::sleep(POLL_SLEEP);
             continue;
         }
         dir_pin.write(if dir == 0 { Level::Low } else { Level::High });
-        let dir_mul = (dir as i64) * 2 - 1;
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
         let accel = read_control(&ctrl.accel);
