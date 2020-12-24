@@ -1,18 +1,19 @@
-use std::fs::OpenOptions;
-use std::io::ErrorKind;
-use std::os::unix::fs::OpenOptionsExt;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    fs::OpenOptions,
+    io::ErrorKind,
+    os::unix::fs::OpenOptionsExt,
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
 
 use anyhow::{anyhow, Result};
 use evdev_rs::enums::EV_ABS;
-use tokio::io::Interest;
-use tokio::{io::unix::AsyncFd, time};
+use tokio::{
+    io::{unix::AsyncFd, Interest},
+    time,
+};
 
-use crate::device;
-use crate::timeval;
-use crate::Opt;
+use crate::{device, timeval, Opt};
 
 #[derive(Debug)]
 struct AxisSpec {

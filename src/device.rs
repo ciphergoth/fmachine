@@ -1,7 +1,11 @@
-use std::{sync::atomic::{AtomicBool, AtomicI64, Ordering}, time::Instant};
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+use std::{
+    sync::{
+        atomic::{AtomicBool, AtomicI64, Ordering},
+        Arc,
+    },
+    thread,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 use rppal::gpio::{Gpio, Level};
@@ -93,11 +97,19 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         }
         if slept > 0.3 {
             let elapsed = start.elapsed().as_secs_f64();
-            println!("elapsed {} slept {} diff {} ratio {}",
-                elapsed, slept, elapsed - slept, elapsed/slept);
+            println!(
+                "elapsed {} slept {} diff {} ratio {}",
+                elapsed,
+                slept,
+                elapsed - slept,
+                elapsed / slept
+            );
             let ticks = (pos - start_pos) * dir_mul;
-            println!("ticks {} diff per tick {}", ticks,
-                (elapsed - slept)/(ticks as f64));
+            println!(
+                "ticks {} diff per tick {}",
+                ticks,
+                (elapsed - slept) / (ticks as f64)
+            );
         }
     }
     println!("Finished successfully");

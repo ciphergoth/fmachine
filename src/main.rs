@@ -1,6 +1,10 @@
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::Arc;
-use std::thread;
+use std::{
+    sync::{
+        atomic::{AtomicBool, AtomicI64, Ordering},
+        Arc,
+    },
+    thread,
+};
 
 use anyhow::Result;
 use simple_signal::{self, Signal};
