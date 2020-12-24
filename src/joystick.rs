@@ -105,15 +105,15 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
         },
         AxisSpec {
             abs: EV_ABS::ABS_RY,
-            min: opt.min_velocity,
-            max: opt.max_velocity,
+            min: opt.min_velocity.ln(),
+            max: opt.max_velocity.ln(),
             time_to_max_s: -5.0,
         },
     ]
     .into_iter()
     .map(|spec| Axis::new(spec, &ev_device, now))
     .collect::<Result<Vec<_>, _>>()?;
-    axes[3].driven = opt.init_velocity;
+    axes[3].driven = opt.init_velocity.ln();
     println!("{:?}", axes);
     let mut drive = false;
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
@@ -165,10 +165,13 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
                 //println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
                 if drive {
-                    let ends = [((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
-                    ((axes[0].driven + axes[1].driven) as i64).min(opt.max_pos),];
-                    let target_velocity0 = (axes[3].driven * (1.0 + axes[2].driven).min(1.0)).min(opt.max_velocity);
-                    let target_velocity1 = (axes[3].driven * (1.0 - axes[2].driven).min(1.0)).min(opt.max_velocity);
+                    let ends = [
+                        ((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
+                        ((axes[0].driven + axes[1].driven) as i64).min(opt.max_pos),
+                    ];
+                    let v = axes[3].driven.exp();
+                    let target_velocity0 = (v * (1.0 + axes[2].driven).min(1.0)).min(opt.max_velocity);
+                    let target_velocity1 = (v * (1.0 - axes[2].driven).min(1.0)).min(opt.max_velocity);
                     //println!("{:?} {}", ends, target_velocity);
                     ctrl.ends[0].store(ends[0], Ordering::Relaxed);
                     ctrl.ends[1].store(ends[1], Ordering::Relaxed);
