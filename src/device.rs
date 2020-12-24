@@ -10,7 +10,7 @@ use rppal::gpio::{Gpio, Level};
 pub struct Control {
     pub run: AtomicBool,
     pub ends: [AtomicI64; 2],
-    pub target_velocity: [AtomicI64; 2],
+    pub target_speed: [AtomicI64; 2],
     pub accel: AtomicI64,
 }
 
@@ -25,7 +25,7 @@ const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
-const MIN_VELOCITY: f64 = 1.0;
+const MIN_SPEED: f64 = 1.0;
 const MIN_T: f64 = 0.0001;
 
 fn read_control(ct: &AtomicI64) -> f64 {
@@ -43,8 +43,8 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         dir = 1 - dir;
         let dir_mul = (dir as i64) * 2 - 1;
         let end = ctrl.ends[dir].load(Ordering::Relaxed);
-        let target_velocity = read_control(&ctrl.target_velocity[dir]);
-        if target_velocity <= MIN_VELOCITY || (end - pos) * dir_mul <= MIN_DISTANCE {
+        let target_speed = read_control(&ctrl.target_speed[dir]);
+        if target_speed <= MIN_SPEED || (end - pos) * dir_mul <= MIN_DISTANCE {
             dir_pin.set_low();
             thread::sleep(POLL_SLEEP);
             continue;
@@ -59,10 +59,10 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         let start = Instant::now();
         loop {
             let end = ctrl.ends[dir].load(Ordering::Relaxed);
-            let target_velocity = read_control(&ctrl.target_velocity[dir]);
+            let target_speed = read_control(&ctrl.target_speed[dir]);
             let accel = read_control(&ctrl.accel);
             let max_delta_v = accel * t;
-            let delta_v = (target_velocity - velocity_hz)
+            let delta_v = (target_speed - velocity_hz)
                 .min(max_delta_v)
                 .max(-max_delta_v);
             let new_vel = velocity_hz + delta_v;
@@ -72,7 +72,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
                 -max_delta_v
             };
             velocity_hz += delta_v;
-            if velocity_hz <= MIN_VELOCITY {
+            if velocity_hz <= MIN_SPEED {
                 println!("{} {}", pos, velocity_hz);
                 break;
             }

@@ -16,13 +16,13 @@ pub struct Opt {
     max_accel: f64,
 
     #[structopt(long, default_value = "100")]
-    min_velocity: f64,
+    min_speed: f64,
 
     #[structopt(long, default_value = "1000")]
-    init_velocity: f64,
+    init_speed: f64,
 
     #[structopt(long, default_value = "20000")]
-    max_velocity: f64,
+    max_speed: f64,
 
     #[structopt(long, default_value = "400")]
     max_pos: i64,
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let ctrl = Arc::new(device::Control {
         run: AtomicBool::new(true),
         ends: [AtomicI64::new(0), AtomicI64::new(0)],
-        target_velocity: [AtomicI64::new(0), AtomicI64::new(0)],
+        target_speed: [AtomicI64::new(0), AtomicI64::new(0)],
         accel: AtomicI64::new((opt.max_accel / device::CONTROL_FACTOR) as i64),
     });
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
@@ -49,8 +49,8 @@ fn main() -> Result<()> {
     };
     joystick::main_loop(opt, ctrl.clone())?;
     println!("Run is false, stopping");
-    ctrl.target_velocity[0].store(0, Ordering::Relaxed);
-    ctrl.target_velocity[1].store(0, Ordering::Relaxed);
+    ctrl.target_speed[0].store(0, Ordering::Relaxed);
+    ctrl.target_speed[1].store(0, Ordering::Relaxed);
     device_thread.join().unwrap()?;
     println!("Finished successfully");
     Ok(())
