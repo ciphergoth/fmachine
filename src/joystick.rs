@@ -118,6 +118,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let mut drive = false;
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
+    let mut report = time::interval(Duration::from_secs(1));
     while ctrl.run.load(Ordering::Relaxed) {
         tokio::select! {
             r = afd.readable() => {
@@ -163,7 +164,6 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 }
                 // Triangular clamp on stroke length
                 axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
-                //println!("{:5} {:5} {:5} {:5}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven);
                 if drive {
                     let ends = [
                         ((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
@@ -178,6 +178,9 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                     ctrl.target_velocity[0].store((target_velocity0 / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
                     ctrl.target_velocity[1].store((target_velocity1 / device::CONTROL_FACTOR) as i64, Ordering::Relaxed);
                 }
+            }
+            _ = report.tick() => {
+                println!("{:5} {:5} {:5} {:5} {}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven.exp(), drive);
             }
         }
     }
