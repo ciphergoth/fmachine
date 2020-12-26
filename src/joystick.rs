@@ -85,37 +85,51 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_file(fd)?;
     let now = timeval::now()?;
-    let mut axes = vec![
+    let mut pos_axis = Axis::new(
         AxisSpec {
             abs: EV_ABS::ABS_X,
             min: -opt.max_pos as f64,
             max: opt.max_pos as f64,
             time_to_max_s: 5.0,
         },
+        &ev_device,
+        now,
+    )?;
+    let mut stroke_len_axis = Axis::new(
         AxisSpec {
             abs: EV_ABS::ABS_Y,
             min: 0.0,
             max: opt.max_pos as f64,
             time_to_max_s: -5.0,
         },
+        &ev_device,
+        now,
+    )?;
+    let mut asymmetry_axis = Axis::new(
         AxisSpec {
             abs: EV_ABS::ABS_RX,
             min: -0.5,
             max: 0.5,
             time_to_max_s: 5.0,
         },
+        &ev_device,
+        now,
+    )?;
+    let mut speed_axis = Axis::new(
         AxisSpec {
             abs: EV_ABS::ABS_RY,
             min: opt.min_speed.ln(),
             max: opt.max_speed.ln(),
             time_to_max_s: -5.0,
         },
-    ]
-    .into_iter()
-    .map(|spec| Axis::new(spec, &ev_device, now))
-    .collect::<Result<Vec<_>, _>>()?;
-    axes[3].driven = opt.init_speed.ln();
-    println!("{:?}", axes);
+        &ev_device,
+        now,
+    )?;
+    speed_axis.driven = opt.init_speed.ln();
+    println!(
+        "{:?} {:?} {:?} {:?}",
+        pos_axis, stroke_len_axis, asymmetry_axis, speed_axis
+    );
     let mut drive = false;
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
@@ -136,12 +150,12 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                                 ctrl.target_speed[0].store(0, Ordering::Relaxed);
                                 ctrl.target_speed[1].store(0, Ordering::Relaxed);
                             }
-                            for ax in &mut axes {
+                            for ax in [&mut pos_axis, &mut stroke_len_axis, &mut asymmetry_axis, &mut speed_axis].iter_mut() {
                                 ax.handle_tick(k.1.time);
                                 ax.drive = drive;
                             }
                         } else {
-                            for ax in &mut axes {
+                            for ax in [&mut pos_axis, &mut stroke_len_axis, &mut asymmetry_axis, &mut speed_axis].iter_mut() {
                                 ax.handle_event(&k.1);
                             }
                         }
@@ -160,19 +174,19 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
             _ = interval.tick() => {
                 let now = timeval::now()?;
                 //println!("tick {:?}", now);
-                for ax in &mut axes {
+                for ax in [&mut pos_axis, &mut stroke_len_axis, &mut asymmetry_axis, &mut speed_axis].iter_mut() {
                     ax.handle_tick(now);
                 }
                 // Triangular clamp on stroke length
-                axes[0].driven = axes[0].driven.max(axes[0].spec.min + axes[1].driven).min(axes[0].spec.max - axes[1].driven);
+                pos_axis.driven = pos_axis.driven.max(pos_axis.spec.min + stroke_len_axis.driven).min(pos_axis.spec.max - stroke_len_axis.driven);
                 if drive {
                     let ends = [
-                        ((axes[0].driven - axes[1].driven) as i64).max(-opt.max_pos),
-                        ((axes[0].driven + axes[1].driven) as i64).min(opt.max_pos),
+                        ((pos_axis.driven - stroke_len_axis.driven) as i64).max(-opt.max_pos),
+                        ((pos_axis.driven + stroke_len_axis.driven) as i64).min(opt.max_pos),
                     ];
-                    let v = axes[3].driven.exp();
-                    let target_speed0 = (v * (1.0 + axes[2].driven).min(1.0)).min(opt.max_speed);
-                    let target_speed1 = (v * (1.0 - axes[2].driven).min(1.0)).min(opt.max_speed);
+                    let v = speed_axis.driven.exp();
+                    let target_speed0 = (v * (1.0 + asymmetry_axis.driven).min(1.0)).min(opt.max_speed);
+                    let target_speed1 = (v * (1.0 - asymmetry_axis.driven).min(1.0)).min(opt.max_speed);
                     //println!("{:?} {}", ends, target_speed);
                     ctrl.ends[0].store(ends[0], Ordering::Relaxed);
                     ctrl.ends[1].store(ends[1], Ordering::Relaxed);
@@ -181,7 +195,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 }
             }
             _ = report.tick() => {
-                println!("{:5} {:5} {:5} {:5} {}", axes[0].driven, axes[1].driven, axes[2].driven, axes[3].driven.exp(), drive);
+                println!("{:5} {:5} {:5} {:5} {}", pos_axis.driven, stroke_len_axis.driven, asymmetry_axis.driven, speed_axis.driven.exp(), drive);
             }
         }
     }
