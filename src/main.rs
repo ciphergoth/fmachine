@@ -14,7 +14,7 @@ mod device;
 mod joystick;
 mod timeval;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Clone, Copy)]
 pub struct Opt {
     #[structopt(long, default_value = "35000")]
     max_accel: f64,
