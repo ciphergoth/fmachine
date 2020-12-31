@@ -44,15 +44,25 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let mut dir: usize = 0;
 
     while ctrl.run.load(Ordering::Relaxed) {
-        dir = 1 - dir;
-        let dir_mul = (dir as i64) * 2 - 1;
-        let end = ctrl.ends[dir].load(Ordering::Relaxed);
-        let target_speed = read_control(&ctrl.target_speed[dir]);
-        if target_speed <= MIN_SPEED || (end - pos) * dir_mul <= MIN_DISTANCE {
-            dir_pin.set_low();
-            thread::sleep(POLL_SLEEP);
-            continue;
+        let can_go = (0..2).map(
+            |d| {
+                let end = ctrl.ends[d].load(Ordering::Relaxed);
+                let target_speed = read_control(&ctrl.target_speed[d]);
+                let dir_mul = (d as i64) * 2 - 1;
+                target_speed > MIN_SPEED && (end - pos) * dir_mul > MIN_DISTANCE
+            }
+        ).collect::<Vec<_>>();
+        let other_dir = 1 - dir;
+        if !can_go[dir] {
+            if can_go[other_dir] {
+                dir = other_dir;
+            } else {
+                dir_pin.set_low();
+                thread::sleep(POLL_SLEEP);
+                continue;
+            }
         }
+        let dir_mul = (dir as i64) * 2 - 1;
         dir_pin.write(if dir == 0 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
@@ -64,7 +74,6 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         loop {
             let end = ctrl.ends[dir].load(Ordering::Relaxed);
             let target_speed = read_control(&ctrl.target_speed[dir]);
-            let accel = read_control(&ctrl.accel);
             let max_delta_v = accel * t;
             let delta_v = (target_speed - velocity_hz)
                 .min(max_delta_v)
