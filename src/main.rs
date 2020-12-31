@@ -45,6 +45,8 @@ fn main() -> Result<()> {
         let ctrl = ctrl.clone();
         move |_| {
             ctrl.run.store(false, Ordering::Relaxed);
+            ctrl.target_speed[0].store(0, Ordering::Relaxed);
+            ctrl.target_speed[1].store(0, Ordering::Relaxed);
         }
     });
     let device_thread = {
