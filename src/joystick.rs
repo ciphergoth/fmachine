@@ -51,10 +51,13 @@ impl Axis {
         })
     }
 
+    fn speed(&self) -> f64 {
+        self.last_value as f64 * self.per
+    }
+
     fn handle_tick(&mut self, drive: bool, now: TimeVal) {
         if drive {
-            self.driven +=
-                self.last_value as f64 * self.per * timeval::diff_as_f64(&now, &self.last_time);
+            self.driven += self.speed() * timeval::diff_as_f64(&now, &self.last_time);
             self.driven = self.driven.max(self.spec.min).min(self.spec.max);
         }
         self.last_time = now;
@@ -153,7 +156,7 @@ impl JoyState {
     }
 
     pub fn handle_tick(&mut self, now: TimeVal) {
-        self.pos.handle_tick(self.drive, now);
+        self.pos.handle_tick(true, now);
         self.stroke_len.handle_tick(self.drive, now);
         self.asymmetry.handle_tick(self.drive, now);
         self.speed.handle_tick(self.drive, now);
@@ -170,17 +173,20 @@ impl JoyState {
             ];
             let v = (self.speed.driven + self.trigger_ln).exp();
             let target_speeds = [
-                (v * (1.0 + self.asymmetry.driven).min(1.0)).min(self.opt.max_speed),
-                (v * (1.0 - self.asymmetry.driven).min(1.0)).min(self.opt.max_speed),
+                (v * (1.0 + self.asymmetry.driven).min(1.0) - self.pos.speed()).min(self.opt.max_speed),
+                (v * (1.0 - self.asymmetry.driven).min(1.0) + self.pos.speed()).min(self.opt.max_speed),
             ];
             //println!("{:?} {}", ends, target_speed);
             self.ctrl.set_ends(&ends);
             self.ctrl.set_target_speeds(&target_speeds);
+        } else {
+            self.ctrl.set_ends(&[-self.opt.max_pos, self.opt.max_pos]);
+            self.ctrl.set_target_speeds(&[-self.pos.speed(), self.pos.speed()]);
         }
     }
 
     pub fn handle_event(&mut self, event: InputEvent) {
-        self.pos.handle_event(self.drive, &event);
+        self.pos.handle_event(true, &event);
         self.stroke_len.handle_event(self.drive, &event);
         self.asymmetry.handle_event(self.drive, &event);
         self.speed.handle_event(self.drive, &event);
