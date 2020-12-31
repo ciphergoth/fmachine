@@ -234,7 +234,7 @@ impl JoyState {
 
     pub fn report(&self) {
         println!(
-            "{:5} {:5} {:5} {:5} {}",
+            "Joystick state: {:8.2} {:8.2} {:8.2} {:8.2} {}",
             self.pos.driven,
             self.stroke_len.driven,
             self.asymmetry.driven,

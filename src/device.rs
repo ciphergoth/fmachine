@@ -44,14 +44,14 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let mut dir: usize = 0;
 
     while ctrl.run.load(Ordering::Relaxed) {
-        let can_go = (0..2).map(
-            |d| {
+        let can_go = (0..2)
+            .map(|d| {
                 let end = ctrl.ends[d].load(Ordering::Relaxed);
                 let target_speed = read_control(&ctrl.target_speed[d]);
                 let dir_mul = (d as i64) * 2 - 1;
                 target_speed > MIN_SPEED && (end - pos) * dir_mul > MIN_DISTANCE
-            }
-        ).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         let other_dir = 1 - dir;
         if !can_go[dir] {
             if can_go[other_dir] {
@@ -86,7 +86,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             };
             velocity_hz += delta_v;
             if velocity_hz <= MIN_SPEED {
-                println!("{} {}", pos, velocity_hz);
+                println!("At stroke end: pos {} velocity_hz {}", pos, velocity_hz);
                 break;
             }
             t = (1.0 + delta_v * t / 2.0) / velocity_hz;
