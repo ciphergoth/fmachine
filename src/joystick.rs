@@ -23,7 +23,6 @@ struct Axis {
     per: f64,
     flat: i32,
     driven: f64,
-    drive: bool,
     last_time: evdev_rs::TimeVal,
     last_value: i32,
 }
@@ -47,14 +46,13 @@ impl Axis {
             per,
             flat,
             driven,
-            drive: false,
             last_time: now,
             last_value: 0,
         })
     }
 
-    fn handle_tick(&mut self, now: TimeVal) {
-        if self.drive {
+    fn handle_tick(&mut self, drive: bool, now: TimeVal) {
+        if drive {
             self.driven +=
                 self.last_value as f64 * self.per * timeval::diff_as_f64(&now, &self.last_time);
             self.driven = self.driven.max(self.spec.min).min(self.spec.max);
@@ -62,11 +60,11 @@ impl Axis {
         self.last_time = now;
     }
 
-    fn handle_event(&mut self, event: &evdev_rs::InputEvent) {
+    fn handle_event(&mut self, drive: bool, event: &evdev_rs::InputEvent) {
         if event.event_code != EventCode::EV_ABS(self.spec.abs) {
             return;
         }
-        self.handle_tick(event.time);
+        self.handle_tick(drive, event.time);
         self.last_value = if event.value <= self.flat && event.value >= -self.flat {
             0
         } else {
@@ -155,16 +153,10 @@ impl JoyState {
     }
 
     pub fn handle_tick(&mut self, now: TimeVal) {
-        for ax in [
-            &mut self.pos,
-            &mut self.stroke_len,
-            &mut self.asymmetry,
-            &mut self.speed,
-        ]
-        .iter_mut()
-        {
-            ax.handle_tick(now);
-        }
+        self.pos.handle_tick(self.drive, now);
+        self.stroke_len.handle_tick(self.drive, now);
+        self.asymmetry.handle_tick(self.drive, now);
+        self.speed.handle_tick(self.drive, now);
         // Triangular clamp on stroke length
         self.pos.driven = self
             .pos
@@ -196,6 +188,10 @@ impl JoyState {
     }
 
     pub fn handle_event(&mut self, event: InputEvent) {
+        self.pos.handle_event(self.drive, &event);
+        self.stroke_len.handle_event(self.drive, &event);
+        self.asymmetry.handle_event(self.drive, &event);
+        self.speed.handle_event(self.drive, &event);
         if event.event_code == TRIGGER_CODE {
             if event.value > 0 {
                 self.trigger_ln =
@@ -205,28 +201,6 @@ impl JoyState {
                 self.drive = false;
                 self.ctrl.target_speed[0].store(0, Ordering::Relaxed);
                 self.ctrl.target_speed[1].store(0, Ordering::Relaxed);
-            }
-            for ax in [
-                &mut self.pos,
-                &mut self.stroke_len,
-                &mut self.asymmetry,
-                &mut self.speed,
-            ]
-            .iter_mut()
-            {
-                ax.handle_tick(event.time);
-                ax.drive = self.drive;
-            }
-        } else {
-            for ax in [
-                &mut self.pos,
-                &mut self.stroke_len,
-                &mut self.asymmetry,
-                &mut self.speed,
-            ]
-            .iter_mut()
-            {
-                ax.handle_event(&event);
             }
         }
         //println!("{:?}", event);
