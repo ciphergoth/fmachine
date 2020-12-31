@@ -1,7 +1,10 @@
 use std::sync::{atomic::Ordering, Arc};
 
 use anyhow::{anyhow, Result};
-use evdev_rs::{enums::EV_ABS, InputEvent, TimeVal};
+use evdev_rs::{
+    enums::{EventCode, EV_ABS},
+    InputEvent, TimeVal,
+};
 
 use crate::{device, timeval, Opt};
 
@@ -16,7 +19,7 @@ struct AxisSpec {
 #[derive(Debug)]
 struct Axis {
     spec: AxisSpec,
-    event_code: evdev_rs::enums::EventCode,
+    event_code: EventCode,
     per: f64,
     flat: i32,
     driven: f64,
@@ -27,7 +30,7 @@ struct Axis {
 
 impl Axis {
     fn new(spec: AxisSpec, ev_device: &evdev_rs::Device, now: evdev_rs::TimeVal) -> Result<Axis> {
-        let event_code = evdev_rs::enums::EventCode::EV_ABS(spec.abs);
+        let event_code = EventCode::EV_ABS(spec.abs);
         let abs_info = ev_device
             .abs_info(&event_code)
             .ok_or_else(|| anyhow!("wtf"))?;
@@ -55,7 +58,7 @@ impl Axis {
     }
 
     fn handle_event(&mut self, event: &evdev_rs::InputEvent) {
-        if event.event_code != evdev_rs::enums::EventCode::EV_ABS(self.spec.abs) {
+        if event.event_code != EventCode::EV_ABS(self.spec.abs) {
             return;
         }
         self.handle_tick(event.time);
@@ -67,6 +70,9 @@ impl Axis {
     }
 }
 
+const TRIGGER_CODE: EventCode = EventCode::EV_ABS(EV_ABS::ABS_RZ);
+const TRIGGER_FACTOR_LN: f64 = 3.0;
+
 #[derive(Debug)]
 pub struct JoyState {
     opt: Opt,
@@ -75,6 +81,8 @@ pub struct JoyState {
     stroke_len: Axis,
     asymmetry: Axis,
     speed: Axis,
+    trigger_max: i32,
+    trigger_ln: f64,
     drive: bool,
 }
 
@@ -128,6 +136,11 @@ impl JoyState {
                 &ev_device,
                 now,
             )?,
+            trigger_max: ev_device
+                .abs_info(&TRIGGER_CODE)
+                .ok_or_else(|| anyhow!("wtf"))?
+                .maximum,
+            trigger_ln: 0.0,
             drive: false,
         };
         res.speed.driven = opt.init_speed.ln();
@@ -156,7 +169,7 @@ impl JoyState {
                 ((self.pos.driven - self.stroke_len.driven) as i64).max(-self.opt.max_pos),
                 ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
             ];
-            let v = self.speed.driven.exp();
+            let v = (self.speed.driven + self.trigger_ln).exp();
             let target_speed0 =
                 (v * (1.0 + self.asymmetry.driven).min(1.0)).min(self.opt.max_speed);
             let target_speed1 =
@@ -176,8 +189,10 @@ impl JoyState {
     }
 
     pub fn handle_event(&mut self, event: InputEvent) {
-        if event.event_code == evdev_rs::enums::EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) {
-            if event.value == 1 {
+        if event.event_code == TRIGGER_CODE {
+            if event.value > 0 {
+                self.trigger_ln =
+                    (((event.value as f64) / (self.trigger_max as f64)) - 1.0) * TRIGGER_FACTOR_LN;
                 self.drive = true;
             } else {
                 self.drive = false;
@@ -207,6 +222,7 @@ impl JoyState {
                 ax.handle_event(&event);
             }
         }
+        //println!("{:?}", event);
     }
 
     pub fn report(&self) {
