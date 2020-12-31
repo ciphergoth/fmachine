@@ -1,17 +1,7 @@
-use std::{
-    fs::OpenOptions,
-    io::ErrorKind,
-    os::unix::fs::OpenOptionsExt,
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
-};
+use std::sync::{atomic::Ordering, Arc};
 
 use anyhow::{anyhow, Result};
 use evdev_rs::{enums::EV_ABS, InputEvent, TimeVal};
-use tokio::{
-    io::{unix::AsyncFd, Interest},
-    time,
-};
 
 use crate::{device, timeval, Opt};
 
@@ -78,7 +68,7 @@ impl Axis {
 }
 
 #[derive(Debug)]
-struct JoyState {
+pub struct JoyState {
     opt: Opt,
     ctrl: Arc<device::Control>,
     pos: Axis,
@@ -89,7 +79,7 @@ struct JoyState {
 }
 
 impl JoyState {
-    fn new(
+    pub fn new(
         opt: Opt,
         ctrl: Arc<device::Control>,
         ev_device: &evdev_rs::Device,
@@ -144,7 +134,7 @@ impl JoyState {
         Ok(res)
     }
 
-    fn handle_tick(&mut self, now: TimeVal) {
+    pub fn handle_tick(&mut self, now: TimeVal) {
         for ax in [
             &mut self.pos,
             &mut self.stroke_len,
@@ -185,7 +175,7 @@ impl JoyState {
         }
     }
 
-    fn handle_event(&mut self, event: InputEvent) {
+    pub fn handle_event(&mut self, event: InputEvent) {
         if event.event_code == evdev_rs::enums::EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) {
             if event.value == 1 {
                 self.drive = true;
@@ -219,7 +209,7 @@ impl JoyState {
         }
     }
 
-    fn report(&self) {
+    pub fn report(&self) {
         println!(
             "{:5} {:5} {:5} {:5} {}",
             self.pos.driven,
@@ -229,48 +219,4 @@ impl JoyState {
             self.drive
         );
     }
-}
-
-pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
-    let fd = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NONBLOCK)
-        .open("/dev/input/event0")?;
-    let ev_device = evdev_rs::Device::new_from_file(fd)?;
-    let mut joystate = JoyState::new(opt, ctrl.clone(), &ev_device, timeval::now()?)?;
-    println!("{:?}", joystate);
-    let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
-    let mut interval = time::interval(Duration::from_millis(50));
-    let mut report = time::interval(Duration::from_secs(1));
-    while ctrl.run.load(Ordering::Relaxed) {
-        tokio::select! {
-            r = afd.readable() => {
-                let mut guard = r?;
-                let a = afd.get_ref().next_event(evdev_rs::ReadFlag::NORMAL);
-                match a {
-                    Ok(k) => {
-                        guard.retain_ready();
-                        joystate.handle_event(k.1);
-                        //println!("Event: {:?}", k.1);
-                    }
-                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                        //println!("would block");
-                        guard.clear_ready();
-                    }
-                    not_ok => {
-                        println!("boom");
-                        not_ok?;
-                    }
-                }
-            }
-            _ = interval.tick() => {
-                joystate.handle_tick(timeval::now()?);
-            }
-            _ = report.tick() => {
-                joystate.report();
-            }
-        }
-    }
-    println!("Finished joystick loop");
-    Ok(())
 }

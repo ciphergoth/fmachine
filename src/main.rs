@@ -11,6 +11,7 @@ use simple_signal::{self, Signal};
 use structopt::StructOpt;
 
 mod device;
+mod evloop;
 mod joystick;
 mod timeval;
 
@@ -56,7 +57,7 @@ fn main() -> Result<()> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?
-        .block_on(async { joystick::main_loop(opt, ctrl.clone()).await })?;
+        .block_on(async { evloop::main_loop(opt, ctrl.clone()).await })?;
     println!("Run is false, stopping");
     ctrl.target_speed[0].store(0, Ordering::Relaxed);
     ctrl.target_speed[1].store(0, Ordering::Relaxed);
