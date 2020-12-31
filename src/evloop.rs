@@ -1,9 +1,5 @@
 use std::{
-    fs::OpenOptions,
-    io::ErrorKind,
-    os::unix::fs::OpenOptionsExt,
-    sync::{atomic::Ordering, Arc},
-    time::Duration,
+    fs::OpenOptions, io::ErrorKind, os::unix::fs::OpenOptionsExt, sync::Arc, time::Duration,
 };
 
 use anyhow::Result;
@@ -12,7 +8,7 @@ use tokio::{
     time,
 };
 
-use crate::{device, timeval, Opt, joystick};
+use crate::{device, joystick, timeval, Opt};
 
 pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let fd = OpenOptions::new()
@@ -25,7 +21,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
     let mut report = time::interval(Duration::from_secs(1));
-    while ctrl.run.load(Ordering::Relaxed) {
+    while ctrl.run() {
         tokio::select! {
             r = afd.readable() => {
                 let mut guard = r?;

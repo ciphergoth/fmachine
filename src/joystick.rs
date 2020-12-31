@@ -1,4 +1,4 @@
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use evdev_rs::{
@@ -169,21 +169,13 @@ impl JoyState {
                 ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
             ];
             let v = (self.speed.driven + self.trigger_ln).exp();
-            let target_speed0 =
-                (v * (1.0 + self.asymmetry.driven).min(1.0)).min(self.opt.max_speed);
-            let target_speed1 =
-                (v * (1.0 - self.asymmetry.driven).min(1.0)).min(self.opt.max_speed);
+            let target_speeds = [
+                (v * (1.0 + self.asymmetry.driven).min(1.0)).min(self.opt.max_speed),
+                (v * (1.0 - self.asymmetry.driven).min(1.0)).min(self.opt.max_speed),
+            ];
             //println!("{:?} {}", ends, target_speed);
-            self.ctrl.ends[0].store(ends[0], Ordering::Relaxed);
-            self.ctrl.ends[1].store(ends[1], Ordering::Relaxed);
-            self.ctrl.target_speed[0].store(
-                (target_speed0 / device::CONTROL_FACTOR) as i64,
-                Ordering::Relaxed,
-            );
-            self.ctrl.target_speed[1].store(
-                (target_speed1 / device::CONTROL_FACTOR) as i64,
-                Ordering::Relaxed,
-            );
+            self.ctrl.set_ends(&ends);
+            self.ctrl.set_target_speeds(&target_speeds);
         }
     }
 
@@ -199,8 +191,7 @@ impl JoyState {
                 self.drive = true;
             } else {
                 self.drive = false;
-                self.ctrl.target_speed[0].store(0, Ordering::Relaxed);
-                self.ctrl.target_speed[1].store(0, Ordering::Relaxed);
+                self.ctrl.set_target_speeds(&[0.0, 0.0]);
             }
         }
         //println!("{:?}", event);

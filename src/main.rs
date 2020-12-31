@@ -1,10 +1,4 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, AtomicI64, Ordering},
-        Arc,
-    },
-    thread,
-};
+use std::{sync::Arc, thread};
 
 use anyhow::Result;
 use simple_signal::{self, Signal};
@@ -39,18 +33,11 @@ pub struct Opt {
 fn main() -> Result<()> {
     let opt = Opt::from_args();
     println!("{:?}", opt);
-    let ctrl = Arc::new(device::Control {
-        run: AtomicBool::new(true),
-        ends: [AtomicI64::new(0), AtomicI64::new(0)],
-        target_speed: [AtomicI64::new(0), AtomicI64::new(0)],
-        accel: AtomicI64::new((opt.max_accel / device::CONTROL_FACTOR) as i64),
-    });
+    let ctrl = Arc::new(device::Control::new(opt.max_accel));
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
         let ctrl = ctrl.clone();
         move |_| {
-            ctrl.run.store(false, Ordering::Relaxed);
-            ctrl.target_speed[0].store(0, Ordering::Relaxed);
-            ctrl.target_speed[1].store(0, Ordering::Relaxed);
+            ctrl.stop();
         }
     });
     let device_thread = {
@@ -62,8 +49,6 @@ fn main() -> Result<()> {
         .build()?
         .block_on(async { evloop::main_loop(opt, ctrl.clone()).await })?;
     println!("Run is false, stopping");
-    ctrl.target_speed[0].store(0, Ordering::Relaxed);
-    ctrl.target_speed[1].store(0, Ordering::Relaxed);
     device_thread.join().unwrap()?;
     println!("Finished successfully");
     Ok(())

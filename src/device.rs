@@ -12,10 +12,55 @@ use rppal::gpio::{Gpio, Level};
 
 #[derive(Debug)]
 pub struct Control {
-    pub run: AtomicBool,
-    pub ends: [AtomicI64; 2],
-    pub target_speed: [AtomicI64; 2],
-    pub accel: AtomicI64,
+    run: AtomicBool,
+    ends: [AtomicI64; 2],
+    target_speeds: [AtomicI64; 2],
+    accel: AtomicI64,
+}
+
+impl Control {
+    pub fn new(accel: f64) -> Self {
+        Self {
+            run: AtomicBool::new(true),
+            ends: [AtomicI64::new(0), AtomicI64::new(0)],
+            target_speeds: [AtomicI64::new(0), AtomicI64::new(0)],
+            accel: AtomicI64::new((accel / CONTROL_FACTOR) as i64),
+        }
+    }
+
+    pub fn run(&self) -> bool {self.run.load(Ordering::Relaxed)}
+
+    pub fn accel(&self) -> f64 {
+        self.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR
+    }
+
+    pub fn end(&self, i: usize) -> i64 {
+        self.ends[i].load(Ordering::Relaxed)
+    }
+
+    pub fn set_ends(&self, ends: &[i64; 2]) {
+        for i in 0..2 {
+            self.ends[i].store(ends[i], Ordering::Relaxed);
+        }
+    }
+
+    pub fn target_speed(&self, i: usize) -> f64 {
+        self.target_speeds[i].load(Ordering::Relaxed) as f64 * CONTROL_FACTOR
+    }
+
+    pub fn set_target_speeds(&self, target_speeds: &[f64; 2]) {
+        for i in 0..2 {
+            self.target_speeds[i].store(
+                (target_speeds[i] / CONTROL_FACTOR) as i64,
+                Ordering::Relaxed,
+            );
+        }
+    }
+
+    pub fn stop(&self) {
+        self.run.store(false, Ordering::Relaxed);
+        self.set_target_speeds(&[0.0, 0.0]);
+    }
 }
 
 pub const CONTROL_FACTOR: f64 = 0.001;
@@ -32,10 +77,6 @@ const MIN_DISTANCE: i64 = 2;
 const MIN_SPEED: f64 = 1.0;
 const MIN_T: f64 = 0.0001;
 
-fn read_control(ct: &AtomicI64) -> f64 {
-    ct.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR
-}
-
 pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
@@ -43,13 +84,11 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let mut pos: i64 = 0;
     let mut dir: usize = 0;
 
-    while ctrl.run.load(Ordering::Relaxed) {
+    while ctrl.run() {
         let can_go = (0..2)
             .map(|d| {
-                let end = ctrl.ends[d].load(Ordering::Relaxed);
-                let target_speed = read_control(&ctrl.target_speed[d]);
                 let dir_mul = (d as i64) * 2 - 1;
-                target_speed > MIN_SPEED && (end - pos) * dir_mul > MIN_DISTANCE
+                ctrl.target_speed(d) > MIN_SPEED && (ctrl.end(d) - pos) * dir_mul > MIN_DISTANCE
             })
             .collect::<Vec<_>>();
         let other_dir = 1 - dir;
@@ -66,14 +105,14 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         dir_pin.write(if dir == 0 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
-        let accel = read_control(&ctrl.accel);
+        let accel = ctrl.accel();
         let mut t = (2.0 / accel).sqrt();
         let start_pos = pos;
         let mut slept = 0.0;
         let start = Instant::now();
         loop {
-            let end = ctrl.ends[dir].load(Ordering::Relaxed);
-            let target_speed = read_control(&ctrl.target_speed[dir]);
+            let end = ctrl.end(dir);
+            let target_speed = ctrl.target_speed(dir);
             let max_delta_v = accel * t;
             let delta_v = (target_speed - velocity_hz)
                 .min(max_delta_v)
