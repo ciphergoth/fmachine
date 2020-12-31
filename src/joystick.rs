@@ -29,7 +29,12 @@ struct Axis {
 }
 
 impl Axis {
-    fn new(spec: AxisSpec, ev_device: &evdev_rs::Device, now: evdev_rs::TimeVal) -> Result<Axis> {
+    fn new(
+        spec: AxisSpec,
+        driven: f64,
+        ev_device: &evdev_rs::Device,
+        now: evdev_rs::TimeVal,
+    ) -> Result<Axis> {
         let event_code = EventCode::EV_ABS(spec.abs);
         let abs_info = ev_device
             .abs_info(&event_code)
@@ -41,7 +46,7 @@ impl Axis {
             event_code,
             per,
             flat,
-            driven: 0.0,
+            driven,
             drive: false,
             last_time: now,
             last_value: 0,
@@ -93,7 +98,7 @@ impl JoyState {
         ev_device: &evdev_rs::Device,
         now: TimeVal,
     ) -> Result<JoyState> {
-        let mut res = JoyState {
+        Ok(JoyState {
             opt,
             ctrl,
             pos: Axis::new(
@@ -103,16 +108,18 @@ impl JoyState {
                     max: opt.max_pos as f64,
                     time_to_max_s: 5.0,
                 },
+                0.0,
                 &ev_device,
                 now,
             )?,
             stroke_len: Axis::new(
                 AxisSpec {
                     abs: EV_ABS::ABS_Y,
-                    min: 0.0,
+                    min: opt.min_stroke as f64,
                     max: opt.max_pos as f64,
                     time_to_max_s: -5.0,
                 },
+                opt.min_stroke as f64,
                 &ev_device,
                 now,
             )?,
@@ -123,6 +130,7 @@ impl JoyState {
                     max: 0.5,
                     time_to_max_s: 5.0,
                 },
+                0.0,
                 &ev_device,
                 now,
             )?,
@@ -133,6 +141,7 @@ impl JoyState {
                     max: opt.max_speed.ln(),
                     time_to_max_s: -5.0,
                 },
+                opt.init_speed.ln(),
                 &ev_device,
                 now,
             )?,
@@ -142,9 +151,7 @@ impl JoyState {
                 .maximum,
             trigger_ln: 0.0,
             drive: false,
-        };
-        res.speed.driven = opt.init_speed.ln();
-        Ok(res)
+        })
     }
 
     pub fn handle_tick(&mut self, now: TimeVal) {

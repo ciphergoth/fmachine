@@ -29,6 +29,9 @@ pub struct Opt {
     #[structopt(long, default_value = "20000")]
     max_speed: f64,
 
+    #[structopt(long, default_value = "40")]
+    min_stroke: i64,
+
     #[structopt(long, default_value = "400")]
     max_pos: i64,
 }
