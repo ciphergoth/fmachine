@@ -231,7 +231,6 @@ impl JoyState {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
 pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let fd = OpenOptions::new()
         .read(true)

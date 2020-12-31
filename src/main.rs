@@ -53,7 +53,10 @@ fn main() -> Result<()> {
         let ctrl = ctrl.clone();
         thread::spawn(move || device::device(ctrl))
     };
-    joystick::main_loop(opt, ctrl.clone())?;
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(async { joystick::main_loop(opt, ctrl.clone()).await })?;
     println!("Run is false, stopping");
     ctrl.target_speed[0].store(0, Ordering::Relaxed);
     ctrl.target_speed[1].store(0, Ordering::Relaxed);
