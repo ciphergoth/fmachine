@@ -1,16 +1,12 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
-use evdev_rs::{
-    enums::{EventCode, EV_ABS},
-    InputEvent, TimeVal,
-};
-
 use crate::{device, timeval, Opt};
+use anyhow::{anyhow, Result};
+use evdev_rs::{enums, enums::EventCode, InputEvent, TimeVal};
 
 #[derive(Debug)]
 struct AxisSpec {
-    abs: EV_ABS,
+    abs: enums::EV_ABS,
     min: f64,
     max: f64,
     time_to_max_s: f64,
@@ -85,8 +81,9 @@ impl Axis {
     }
 }
 
-const TRIGGER_CODE: EventCode = EventCode::EV_ABS(EV_ABS::ABS_RZ);
+const TRIGGER_CODE: EventCode = EventCode::EV_ABS(enums::EV_ABS::ABS_RZ);
 const TRIGGER_FACTOR_LN: f64 = 3.0;
+const ASYMMETRY_RESET_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_THUMBR);
 
 #[derive(Debug)]
 pub struct JoyState {
@@ -113,7 +110,7 @@ impl JoyState {
             ctrl,
             pos: Axis::new(
                 AxisSpec {
-                    abs: EV_ABS::ABS_X,
+                    abs: enums::EV_ABS::ABS_X,
                     min: -(opt.max_pos - opt.min_stroke) as f64,
                     max: (opt.max_pos - opt.min_stroke) as f64,
                     time_to_max_s: 5.0,
@@ -124,7 +121,7 @@ impl JoyState {
             )?,
             stroke_len: Axis::new(
                 AxisSpec {
-                    abs: EV_ABS::ABS_Y,
+                    abs: enums::EV_ABS::ABS_Y,
                     min: opt.min_stroke as f64,
                     max: opt.max_pos as f64,
                     time_to_max_s: -5.0,
@@ -135,7 +132,7 @@ impl JoyState {
             )?,
             asymmetry: Axis::new(
                 AxisSpec {
-                    abs: EV_ABS::ABS_RX,
+                    abs: enums::EV_ABS::ABS_RX,
                     min: -0.5,
                     max: 0.5,
                     time_to_max_s: 5.0,
@@ -146,7 +143,7 @@ impl JoyState {
             )?,
             speed: Axis::new(
                 AxisSpec {
-                    abs: EV_ABS::ABS_RY,
+                    abs: enums::EV_ABS::ABS_RY,
                     min: opt.min_speed.ln(),
                     max: opt.max_speed.ln(),
                     time_to_max_s: -5.0,
@@ -203,15 +200,23 @@ impl JoyState {
         self.stroke_len.handle_event(self.drive, &event);
         self.asymmetry.handle_event(self.drive, &event);
         self.speed.handle_event(self.drive, &event);
-        if event.event_code == TRIGGER_CODE {
-            if event.value > 0 {
-                self.trigger_ln =
-                    (((event.value as f64) / (self.trigger_max as f64)) - 1.0) * TRIGGER_FACTOR_LN;
-                self.drive = true;
-            } else {
-                self.drive = false;
-                self.ctrl.set_target_speeds(&[0.0, 0.0]);
+        match event.event_code {
+            TRIGGER_CODE => {
+                if event.value > 0 {
+                    self.trigger_ln = (((event.value as f64) / (self.trigger_max as f64)) - 1.0)
+                        * TRIGGER_FACTOR_LN;
+                    self.drive = true;
+                } else {
+                    self.drive = false;
+                    self.ctrl.set_target_speeds(&[0.0, 0.0]);
+                }
+            },
+            ASYMMETRY_RESET_CODE => {
+                if event.value != 0 {
+                    self.asymmetry.driven = 0.0;
+                }
             }
+            _ => (),
         }
         //println!("{:?}", event);
     }
