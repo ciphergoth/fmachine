@@ -77,9 +77,9 @@ const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
 const MIN_SPEED: f64 = 1.0;
-const MIN_T: f64 = 0.0001;
+const MIN_T: f64 = 0.0002;
 
-pub fn device(ctrl: Arc<Control>) -> Result<()> {
+pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
@@ -111,6 +111,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         let mut t = (2.0 / accel).sqrt();
         let start_pos = pos;
         let mut slept = 0.0;
+        let mut time_clip = false;
         let start = Instant::now();
         loop {
             let end = ctrl.end(dir);
@@ -131,22 +132,21 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             }
             t = (1.0 + delta_v * t / 2.0) / velocity_hz;
             if t < MIN_T {
+                time_clip = true;
                 // this should never happen
                 t = MIN_T;
             }
             pul_pin.set_high();
             thread::sleep(PULSE_DURATION);
             pul_pin.set_low();
-            thread::sleep(Duration::from_secs_f64(
-                t - 0.000001 * (PULSE_DURATION_US as f64),
-            ));
+            thread::sleep(Duration::from_secs_f64(t - time_error));
             slept += t;
             pos += dir_mul;
             //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
         println!(
-            "At stroke end: pos {:8.2} velocity_hz {:8.2}",
-            pos, velocity_hz
+            "At stroke end: pos {:8.2} velocity_hz {:8.2} time_clip {}",
+            pos, velocity_hz, time_clip
         );
         if slept > 0.3 {
             let elapsed = start.elapsed().as_secs_f64();

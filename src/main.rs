@@ -20,7 +20,7 @@ pub struct Opt {
     #[structopt(long, default_value = "1000")]
     init_speed: f64,
 
-    #[structopt(long, default_value = "20000")]
+    #[structopt(long, default_value = "5000")]
     max_speed: f64,
 
     #[structopt(long, default_value = "40")]
@@ -28,6 +28,9 @@ pub struct Opt {
 
     #[structopt(long, default_value = "400")]
     max_pos: i64,
+
+    #[structopt(long, default_value = "0.000170")]
+    time_error: f64,
 }
 
 fn main() -> Result<()> {
@@ -42,7 +45,7 @@ fn main() -> Result<()> {
     });
     let device_thread = {
         let ctrl = ctrl.clone();
-        thread::spawn(move || device::device(ctrl))
+        thread::spawn(move || device::device(opt.time_error, ctrl))
     };
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
