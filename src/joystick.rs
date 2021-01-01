@@ -76,7 +76,12 @@ impl Axis {
     }
 
     fn clamp(&mut self, lo: f64, hi: f64) {
-        self.driven = self.driven.max(lo).min(hi).max(self.spec.min).min(self.spec.max);
+        self.driven = self
+            .driven
+            .max(lo)
+            .min(hi)
+            .max(self.spec.min)
+            .min(self.spec.max);
     }
 }
 
@@ -168,25 +173,28 @@ impl JoyState {
             // Triangular clamp on stroke length
             self.pos.clamp(
                 self.pos.spec.min + self.stroke_len.driven,
-                self.pos.spec.max - self.stroke_len.driven
+                self.pos.spec.max - self.stroke_len.driven,
             );
-            let ends = [
+            let v = (self.speed.driven + self.trigger_ln).exp();
+            //println!("{:?} {}", ends, target_speed);
+            self.ctrl.set_ends(&[
                 ((self.pos.driven - self.stroke_len.driven) as i64).max(-self.opt.max_pos),
                 ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
-            ];
-            let v = (self.speed.driven + self.trigger_ln).exp();
-            let target_speeds = [
-                (v * (1.0 + self.asymmetry.driven).min(1.0) - self.pos.speed()).min(self.opt.max_speed),
-                (v * (1.0 - self.asymmetry.driven).min(1.0) + self.pos.speed()).min(self.opt.max_speed),
-            ];
-            //println!("{:?} {}", ends, target_speed);
-            self.ctrl.set_ends(&ends);
-            self.ctrl.set_target_speeds(&target_speeds);
+            ]);
+            self.ctrl.set_target_speeds(&[
+                (v * (1.0 + self.asymmetry.driven).min(1.0) - self.pos.speed())
+                    .min(self.opt.max_speed),
+                (v * (1.0 - self.asymmetry.driven).min(1.0) + self.pos.speed())
+                    .min(self.opt.max_speed),
+            ]);
         } else {
-            self.stroke_len.clamp(0.0, self.pos.driven - self.pos.spec.min);
-            self.stroke_len.clamp(0.0, self.pos.spec.max - self.pos.driven);
+            self.stroke_len
+                .clamp(0.0, self.pos.driven - self.pos.spec.min);
+            self.stroke_len
+                .clamp(0.0, self.pos.spec.max - self.pos.driven);
             self.ctrl.set_ends(&[-self.opt.max_pos, self.opt.max_pos]);
-            self.ctrl.set_target_speeds(&[-self.pos.speed(), self.pos.speed()]);
+            self.ctrl
+                .set_target_speeds(&[-self.pos.speed(), self.pos.speed()]);
         }
     }
 

@@ -28,7 +28,9 @@ impl Control {
         }
     }
 
-    pub fn run(&self) -> bool {self.run.load(Ordering::Relaxed)}
+    pub fn run(&self) -> bool {
+        self.run.load(Ordering::Relaxed)
+    }
 
     pub fn accel(&self) -> f64 {
         self.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR
@@ -125,7 +127,6 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             };
             velocity_hz += delta_v;
             if velocity_hz <= MIN_SPEED {
-                println!("At stroke end: pos {} velocity_hz {}", pos, velocity_hz);
                 break;
             }
             t = (1.0 + delta_v * t / 2.0) / velocity_hz;
@@ -143,20 +144,24 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             pos += dir_mul;
             //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
+        println!(
+            "At stroke end: pos {:8.2} velocity_hz {:8.2}",
+            pos, velocity_hz
+        );
         if slept > 0.3 {
             let elapsed = start.elapsed().as_secs_f64();
             println!(
-                "elapsed {} slept {} diff {} ratio {}",
+                "elapsed {:8.2} slept {:8.2} diff {:8.2} ratio 1 + {:e}",
                 elapsed,
                 slept,
-                elapsed - slept,
-                elapsed / slept
+                (elapsed - slept),
+                (elapsed / slept) - 1.0
             );
             let ticks = (pos - start_pos) * dir_mul;
             println!(
-                "ticks {} diff per tick {}",
+                "ticks {} diff per tick {:8.2}us",
                 ticks,
-                (elapsed - slept) / (ticks as f64)
+                (elapsed - slept) * 1e6 / (ticks as f64)
             );
         }
     }
