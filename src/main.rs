@@ -33,6 +33,14 @@ pub struct Opt {
     time_error: f64,
 }
 
+fn run_evloop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(async { evloop::main_loop(opt, ctrl.clone()).await })?;
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let opt = Opt::from_args();
     println!("{:?}", opt);
@@ -47,12 +55,11 @@ fn main() -> Result<()> {
         let ctrl = ctrl.clone();
         thread::spawn(move || device::device(opt.time_error, ctrl))
     };
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?
-        .block_on(async { evloop::main_loop(opt, ctrl.clone()).await })?;
-    println!("Run is false, stopping");
+    let evloop_result = run_evloop(opt, ctrl.clone());
+    println!("Event loop finished");
+    ctrl.stop();
     device_thread.join().unwrap()?;
+    evloop_result?;
     println!("Finished successfully");
     Ok(())
 }
