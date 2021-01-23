@@ -16,6 +16,7 @@ pub struct Control {
     ends: [AtomicI64; 2],
     target_speeds: [AtomicI64; 2],
     accel: AtomicI64,
+    step: AtomicI64,
 }
 
 impl Control {
@@ -25,6 +26,7 @@ impl Control {
             ends: [AtomicI64::new(0), AtomicI64::new(0)],
             target_speeds: [AtomicI64::new(0), AtomicI64::new(0)],
             accel: AtomicI64::new((accel / CONTROL_FACTOR) as i64),
+            step: AtomicI64::new(0),
         }
     }
 
@@ -59,6 +61,14 @@ impl Control {
         }
     }
 
+    pub fn step(&self) -> i64 {
+        self.step.load(Ordering::Relaxed)
+    }
+
+    pub fn step_add(&self, d: i64) {
+        self.step.fetch_add(d, Ordering::Relaxed);
+    }
+
     pub fn stop(&self) {
         self.run.store(false, Ordering::Relaxed);
         self.set_target_speeds(&[0.0, 0.0]);
@@ -84,6 +94,7 @@ pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
     let mut pos: i64 = 0;
     let mut dir: usize = 0;
+    let mut last_step = ctrl.step();
 
     while ctrl.run() {
         let can_go = (0..2)
@@ -97,8 +108,27 @@ pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
             if can_go[other_dir] {
                 dir = other_dir;
             } else {
-                dir_pin.set_low();
-                thread::sleep(POLL_SLEEP);
+                let step = ctrl.step();
+                if step == last_step {
+                    dir_pin.set_low();
+                    thread::sleep(POLL_SLEEP);
+                } else if step > last_step {
+                    dbg!((step, last_step));
+                    dir_pin.set_high();
+                    thread::sleep(POLL_SLEEP);
+                    pul_pin.set_high();
+                    thread::sleep(PULSE_DURATION);
+                    pul_pin.set_low();
+                    last_step += 1;
+                } else {
+                    dbg!((step, last_step));
+                    dir_pin.set_low();
+                    thread::sleep(POLL_SLEEP);
+                    pul_pin.set_high();
+                    thread::sleep(PULSE_DURATION);
+                    pul_pin.set_low();
+                    last_step -= 1;
+                }
                 continue;
             }
         }
@@ -162,6 +192,7 @@ pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
                 (elapsed - slept) * 1e6 / (ticks as f64)
             );
         }
+        last_step = ctrl.step();
     }
     println!("Finished successfully");
     Ok(())

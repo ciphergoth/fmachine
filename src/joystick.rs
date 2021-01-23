@@ -210,13 +210,19 @@ impl JoyState {
                     self.drive = false;
                     self.ctrl.set_target_speeds(&[0.0, 0.0]);
                 }
-            },
+            }
             ASYMMETRY_RESET_CODE => {
                 if event.value != 0 {
                     self.asymmetry.driven = 0.0;
                 }
             }
-            _ => (),
+            EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_HAT0X) => {
+                dbg!(event.value);
+                self.ctrl.step_add(event.value as i64);
+            }
+            _ => {
+                dbg!(event);
+            },
         }
         //println!("{:?}", event);
     }
