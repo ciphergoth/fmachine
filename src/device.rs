@@ -110,25 +110,14 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
                 dir = other_dir;
             } else {
                 let step = ctrl.step();
-                if step == last_step {
-                    dir_pin.set_low();
-                    thread::sleep(POLL_SLEEP);
-                } else if step > last_step {
-                    dbg!((step, last_step));
-                    dir_pin.set_high();
-                    thread::sleep(POLL_SLEEP);
+                let d = (step - last_step).signum();
+                dir_pin.write(if d == 1 {Level::High} else {Level::Low} );
+                thread::sleep(POLL_SLEEP);
+                if d != 0 {
                     pul_pin.set_high();
                     thread::sleep(PULSE_DURATION);
                     pul_pin.set_low();
-                    last_step += 1;
-                } else {
-                    dbg!((step, last_step));
-                    dir_pin.set_low();
-                    thread::sleep(POLL_SLEEP);
-                    pul_pin.set_high();
-                    thread::sleep(PULSE_DURATION);
-                    pul_pin.set_low();
-                    last_step -= 1;
+                    last_step += d;
                 }
                 continue;
             }
