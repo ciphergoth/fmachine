@@ -28,9 +28,6 @@ pub struct Opt {
 
     #[structopt(long, default_value = "400")]
     max_pos: i64,
-
-    #[structopt(long, default_value = "0.000170")]
-    time_error: f64,
 }
 
 fn run_evloop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
@@ -53,7 +50,7 @@ fn main() -> Result<()> {
     });
     let device_thread = {
         let ctrl = ctrl.clone();
-        thread::spawn(move || device::device(opt.time_error, ctrl))
+        thread::spawn(move || device::device(ctrl))
     };
     let evloop_result = run_evloop(opt, ctrl.clone());
     println!("Event loop finished");

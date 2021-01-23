@@ -88,13 +88,14 @@ const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
 const MIN_SPEED: f64 = 1.0;
 
-pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
+pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
     let mut pos: i64 = 0;
     let mut dir: usize = 0;
     let mut last_step = ctrl.step();
+    let mut time_error = 0.0;
 
     while ctrl.run() {
         let can_go = (0..2)
@@ -164,11 +165,12 @@ pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
             thread::sleep(PULSE_DURATION);
             pul_pin.set_low();
             if t > time_error {
-                thread::sleep(Duration::from_secs_f64(t - time_error));
+                let st = t - time_error;
+                thread::sleep(Duration::from_secs_f64(st));
+                slept += st;
             } else {
                 time_clip = true;
             }
-            slept += t;
             pos += dir_mul;
             //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
@@ -186,10 +188,11 @@ pub fn device(time_error: f64, ctrl: Arc<Control>) -> Result<()> {
                 (elapsed / slept) - 1.0
             );
             let ticks = (pos - start_pos) * dir_mul;
+            time_error = (elapsed - slept) / (ticks as f64);
             println!(
-                "ticks {} diff per tick {:8.2}us",
+                "ticks {} time error {:8.2}us",
                 ticks,
-                (elapsed - slept) * 1e6 / (ticks as f64)
+                time_error * 1e6
             );
         }
         last_step = ctrl.step();
