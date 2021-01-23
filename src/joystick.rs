@@ -196,6 +196,9 @@ impl JoyState {
     }
 
     pub fn handle_event(&mut self, event: InputEvent) {
+        if self.opt.report_events {
+            println!("Event: {:?}", event);
+        }
         self.pos.handle_event(true, &event);
         self.stroke_len.handle_event(self.drive, &event);
         self.asymmetry.handle_event(self.drive, &event);
@@ -217,14 +220,10 @@ impl JoyState {
                 }
             }
             EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_HAT0X) => {
-                dbg!(event.value);
                 self.ctrl.step_add(event.value as i64);
             }
-            _ => {
-                dbg!(event);
-            },
+            _ => (),
         }
-        //println!("{:?}", event);
     }
 
     pub fn report(&self) {

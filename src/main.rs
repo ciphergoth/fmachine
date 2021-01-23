@@ -28,6 +28,9 @@ pub struct Opt {
 
     #[structopt(long, default_value = "400")]
     max_pos: i64,
+
+    #[structopt(long)]
+    report_events: bool,
 }
 
 fn run_evloop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
