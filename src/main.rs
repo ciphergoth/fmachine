@@ -11,7 +11,7 @@ mod timeval;
 
 #[derive(Debug, StructOpt, Clone, Copy)]
 pub struct Opt {
-    #[structopt(long, default_value = "35000")]
+    #[structopt(long, default_value = "20000")]
     max_accel: f64,
 
     #[structopt(long, default_value = "100")]

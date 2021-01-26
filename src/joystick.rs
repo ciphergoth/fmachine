@@ -84,6 +84,7 @@ impl Axis {
 const TRIGGER_CODE: EventCode = EventCode::EV_ABS(enums::EV_ABS::ABS_RZ);
 const TRIGGER_FACTOR_LN: f64 = 3.0;
 const ASYMMETRY_RESET_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_THUMBR);
+const FAST_STEP_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR);
 
 #[derive(Debug)]
 pub struct JoyState {
@@ -96,6 +97,7 @@ pub struct JoyState {
     trigger_max: i32,
     trigger_ln: f64,
     drive: bool,
+    step_mul: i64,
 }
 
 impl JoyState {
@@ -123,7 +125,7 @@ impl JoyState {
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_Y,
                     min: opt.min_stroke as f64,
-                    max: (opt.max_pos as f64)/2.0,
+                    max: (opt.max_pos as f64) / 2.0,
                     time_to_max_s: -5.0,
                 },
                 opt.min_stroke as f64,
@@ -158,6 +160,7 @@ impl JoyState {
                 .maximum,
             trigger_ln: 0.0,
             drive: false,
+            step_mul: 1,
         })
     }
 
@@ -219,8 +222,11 @@ impl JoyState {
                     self.asymmetry.driven = 0.0;
                 }
             }
+            FAST_STEP_CODE => {
+                self.step_mul = if event.value > 0 { 10 } else { 1 };
+            }
             EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_HAT0X) => {
-                self.ctrl.step_add(event.value as i64);
+                self.ctrl.step_add((event.value as i64) * self.step_mul);
             }
             _ => (),
         }
