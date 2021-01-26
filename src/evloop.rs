@@ -30,14 +30,11 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                     Ok(k) => {
                         guard.retain_ready();
                         joystate.handle_event(k.1);
-                        //println!("Event: {:?}", k.1);
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                        //println!("would block");
                         guard.clear_ready();
                     }
                     not_ok => {
-                        println!("boom");
                         not_ok?;
                     }
                 }

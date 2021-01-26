@@ -111,7 +111,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             } else {
                 let step = ctrl.step();
                 let d = (step - last_step).signum();
-                dir_pin.write(if d == 1 {Level::High} else {Level::Low} );
+                dir_pin.write(if d == 1 {Level::Low} else {Level::High} );
                 thread::sleep(POLL_SLEEP);
                 if d != 0 {
                     pul_pin.set_high();
@@ -123,7 +123,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             }
         }
         let dir_mul = (dir as i64) * 2 - 1;
-        dir_pin.write(if dir == 0 { Level::Low } else { Level::High });
+        dir_pin.write(if dir == 1 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
         let accel = ctrl.accel();

@@ -111,7 +111,7 @@ impl JoyState {
             pos: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_X,
-                    min: -(opt.max_pos - opt.min_stroke) as f64,
+                    min: opt.min_stroke as f64,
                     max: (opt.max_pos - opt.min_stroke) as f64,
                     time_to_max_s: 5.0,
                 },
@@ -123,7 +123,7 @@ impl JoyState {
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_Y,
                     min: opt.min_stroke as f64,
-                    max: opt.max_pos as f64,
+                    max: (opt.max_pos as f64)/2.0,
                     time_to_max_s: -5.0,
                 },
                 opt.min_stroke as f64,
@@ -175,7 +175,7 @@ impl JoyState {
             let v = (self.speed.driven + self.trigger_ln).exp();
             //println!("{:?} {}", ends, target_speed);
             self.ctrl.set_ends(&[
-                ((self.pos.driven - self.stroke_len.driven) as i64).max(-self.opt.max_pos),
+                ((self.pos.driven - self.stroke_len.driven) as i64).max(0),
                 ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
             ]);
             self.ctrl.set_target_speeds(&[
@@ -189,7 +189,7 @@ impl JoyState {
                 .clamp(0.0, self.pos.driven - self.pos.spec.min);
             self.stroke_len
                 .clamp(0.0, self.pos.spec.max - self.pos.driven);
-            self.ctrl.set_ends(&[-self.opt.max_pos, self.opt.max_pos]);
+            self.ctrl.set_ends(&[0, self.opt.max_pos]);
             self.ctrl
                 .set_target_speeds(&[-self.pos.speed(), self.pos.speed()]);
         }
