@@ -116,7 +116,7 @@ impl JoyState {
                     time_to_max_s: 5.0,
                 },
                 0.0,
-                &ev_device,
+                ev_device,
                 now,
             )?,
             stroke_len: Axis::new(
@@ -127,7 +127,7 @@ impl JoyState {
                     time_to_max_s: -5.0,
                 },
                 opt.min_stroke as f64,
-                &ev_device,
+                ev_device,
                 now,
             )?,
             asymmetry: Axis::new(
@@ -138,7 +138,7 @@ impl JoyState {
                     time_to_max_s: 5.0,
                 },
                 0.0,
-                &ev_device,
+                ev_device,
                 now,
             )?,
             speed: Axis::new(
@@ -149,7 +149,7 @@ impl JoyState {
                     time_to_max_s: -5.0,
                 },
                 opt.init_speed.ln(),
-                &ev_device,
+                ev_device,
                 now,
             )?,
             trigger_max: ev_device

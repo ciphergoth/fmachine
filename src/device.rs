@@ -43,8 +43,8 @@ impl Control {
     }
 
     pub fn set_ends(&self, ends: &[i64; 2]) {
-        for i in 0..2 {
-            self.ends[i].store(ends[i], Ordering::Relaxed);
+        for (end, &value) in self.ends.iter().zip(ends.iter()) {
+            end.store(value, Ordering::Relaxed);
         }
     }
 
@@ -53,11 +53,8 @@ impl Control {
     }
 
     pub fn set_target_speeds(&self, target_speeds: &[f64; 2]) {
-        for i in 0..2 {
-            self.target_speeds[i].store(
-                (target_speeds[i] / CONTROL_FACTOR) as i64,
-                Ordering::Relaxed,
-            );
+        for (target_speed, &value) in self.target_speeds.iter().zip(target_speeds.iter()) {
+            target_speed.store((value / CONTROL_FACTOR) as i64, Ordering::Relaxed);
         }
     }
 
@@ -111,7 +108,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             } else {
                 let step = ctrl.step();
                 let d = (step - last_step).signum();
-                dir_pin.write(if d == 1 {Level::Low} else {Level::High} );
+                dir_pin.write(if d == 1 { Level::Low } else { Level::High });
                 thread::sleep(POLL_SLEEP);
                 if d != 0 {
                     pul_pin.set_high();
@@ -178,11 +175,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             );
             let ticks = (pos - start_pos) * dir_mul;
             time_error = (elapsed - slept) / (ticks as f64);
-            println!(
-                "ticks {} time error {:8.2}us",
-                ticks,
-                time_error * 1e6
-            );
+            println!("ticks {} time error {:8.2}us", ticks, time_error * 1e6);
         }
         last_step = ctrl.step();
     }
