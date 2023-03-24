@@ -15,7 +15,6 @@ struct AxisSpec {
 #[derive(Debug)]
 struct Axis {
     spec: AxisSpec,
-    event_code: EventCode,
     per: f64,
     flat: i32,
     driven: f64,
@@ -38,7 +37,6 @@ impl Axis {
         let flat = abs_info.flat * 11 / 10;
         Ok(Axis {
             spec,
-            event_code,
             per,
             flat,
             driven,
