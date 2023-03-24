@@ -7,7 +7,6 @@ use simple_signal::{self, Signal};
 mod device;
 mod evloop;
 mod joystick;
-mod timeval;
 
 #[derive(Debug, Parser, Clone, Copy)]
 #[command(author, version, about, long_about = None)]
@@ -59,6 +58,9 @@ fn main() -> Result<()> {
     let evloop_result = run_evloop(opt, ctrl.clone());
     println!("Event loop finished");
     ctrl.stop();
+    // unwrap() here, otherwise we see
+    // the trait `std::error::Error` is not implemented for `dyn Any + Send`
+    // `dyn Any + Send` cannot be shared between threads safely
     device_thread.join().unwrap()?;
     evloop_result?;
     println!("Finished successfully");

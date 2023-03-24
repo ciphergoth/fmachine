@@ -91,7 +91,7 @@ dependencies = [
 
 [[package]]
 name = "evdev-rs"
-version = "0.4.0"
+version = "0.6.1"
 dependencies = [
  "bitflags",
  "evdev-sys",
@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "evdev-sys"
-version = "0.2.1"
+version = "0.2.5"
 dependencies = [
  "cc",
  "libc",

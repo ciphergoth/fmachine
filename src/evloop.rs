@@ -1,5 +1,6 @@
 use std::{
     fs::OpenOptions, io::ErrorKind, os::unix::fs::OpenOptionsExt, sync::Arc, time::Duration,
+    time::SystemTime,
 };
 
 use anyhow::Result;
@@ -8,7 +9,7 @@ use tokio::{
     time,
 };
 
-use crate::{device, joystick, timeval, Opt};
+use crate::{device, joystick, Opt};
 
 pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
     let fd = OpenOptions::new()
@@ -16,7 +17,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
         .custom_flags(libc::O_NONBLOCK)
         .open("/dev/input/event0")?;
     let ev_device = evdev_rs::Device::new_from_file(fd)?;
-    let mut joystate = joystick::JoyState::new(opt, ctrl.clone(), &ev_device, timeval::now()?)?;
+    let mut joystate = joystick::JoyState::new(opt, ctrl.clone(), &ev_device, SystemTime::now())?;
     println!("{:?}", joystate);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
@@ -40,7 +41,7 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
                 }
             }
             _ = interval.tick() => {
-                joystate.handle_tick(timeval::now()?);
+                joystate.handle_tick(SystemTime::now());
             }
             _ = report.tick() => {
                 joystate.report();

@@ -1,8 +1,9 @@
 use std::sync::Arc;
+use std::time::SystemTime;
 
-use crate::{device, timeval, Opt};
+use crate::{device, Opt};
 use anyhow::{anyhow, Result};
-use evdev_rs::{enums, enums::EventCode, InputEvent, TimeVal};
+use evdev_rs::{enums, enums::EventCode, DeviceWrapper, InputEvent};
 
 #[derive(Debug)]
 struct AxisSpec {
@@ -18,7 +19,7 @@ struct Axis {
     per: f64,
     flat: i32,
     driven: f64,
-    last_time: evdev_rs::TimeVal,
+    last_time: SystemTime,
     last_value: i32,
 }
 
@@ -27,7 +28,7 @@ impl Axis {
         spec: AxisSpec,
         driven: f64,
         ev_device: &evdev_rs::Device,
-        now: evdev_rs::TimeVal,
+        now: SystemTime,
     ) -> Result<Axis> {
         let event_code = EventCode::EV_ABS(spec.abs);
         let abs_info = ev_device
@@ -49,10 +50,12 @@ impl Axis {
         self.last_value as f64 * self.per
     }
 
-    fn handle_tick(&mut self, drive: bool, now: TimeVal) {
+    fn handle_tick(&mut self, drive: bool, now: SystemTime) {
         if drive {
-            self.driven += self.speed() * timeval::diff_as_f64(&now, &self.last_time);
-            self.driven = self.driven.max(self.spec.min).min(self.spec.max);
+            if let Ok(t) = now.duration_since(self.last_time) {
+                self.driven += self.speed() * t.as_secs_f64();
+                self.driven = self.driven.max(self.spec.min).min(self.spec.max);
+            }
         }
         self.last_time = now;
     }
@@ -61,7 +64,7 @@ impl Axis {
         if event.event_code != EventCode::EV_ABS(self.spec.abs) {
             return;
         }
-        self.handle_tick(drive, event.time);
+        self.handle_tick(drive, event.time.try_into().unwrap());
         self.last_value = if event.value <= self.flat && event.value >= -self.flat {
             0
         } else {
@@ -103,7 +106,7 @@ impl JoyState {
         opt: Opt,
         ctrl: Arc<device::Control>,
         ev_device: &evdev_rs::Device,
-        now: TimeVal,
+        now: SystemTime,
     ) -> Result<JoyState> {
         Ok(JoyState {
             opt,
@@ -162,7 +165,7 @@ impl JoyState {
         })
     }
 
-    pub fn handle_tick(&mut self, now: TimeVal) {
+    pub fn handle_tick(&mut self, now: SystemTime) {
         self.pos.handle_tick(true, now);
         self.stroke_len.handle_tick(self.drive, now);
         self.asymmetry.handle_tick(self.drive, now);
