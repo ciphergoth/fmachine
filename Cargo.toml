@@ -11,7 +11,7 @@ anyhow = "1.0.70"
 libc = "0.2.140"
 rppal = "0.14.1"
 simple-signal = "1.1.1"
-structopt = "0.3.26"
+clap = { version = "4.1.13", features = ["derive"] }
 
 [dependencies.evdev-rs]
 path = "../evdev-rs"
