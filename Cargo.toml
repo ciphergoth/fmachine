@@ -7,15 +7,15 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.35"
-libc = "0.2.81"
-rppal = "0.11.3"
+anyhow = "1.0.70"
+libc = "0.2.140"
+rppal = "0.14.1"
 simple-signal = "1.1.1"
-structopt = "0.3.21"
+structopt = "0.3.26"
 
 [dependencies.evdev-rs]
 path = "../evdev-rs"
 
 [dependencies.tokio]
-version = "0.3.6"
+version = "1.26.0"
 features = ["macros", "net", "rt", "time"]
