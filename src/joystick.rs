@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
-use crate::{device, Opt};
 use anyhow::{anyhow, Result};
 use evdev_rs::{enums, enums::EventCode, DeviceWrapper, InputEvent};
+
+use crate::{device, Opt};
 
 #[derive(Debug)]
 struct AxisSpec {

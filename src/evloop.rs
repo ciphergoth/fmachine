@@ -1,6 +1,9 @@
 use std::{
-    fs::OpenOptions, io::ErrorKind, os::unix::fs::OpenOptionsExt, sync::Arc, time::Duration,
-    time::SystemTime,
+    fs::OpenOptions,
+    io::ErrorKind,
+    os::unix::fs::OpenOptionsExt,
+    sync::Arc,
+    time::{Duration, SystemTime},
 };
 
 use anyhow::Result;
