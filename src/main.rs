@@ -29,6 +29,9 @@ pub struct Opt {
     #[arg(long, default_value = "1340")]
     max_pos: i64,
 
+    #[arg(long, default_value = "20.0")]
+    time_to_max_s: f64,
+
     #[arg(long)]
     report_events: bool,
 }
