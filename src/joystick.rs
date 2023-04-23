@@ -85,7 +85,7 @@ impl Axis {
 const TRIGGER_CODE: EventCode = EventCode::EV_ABS(enums::EV_ABS::ABS_RZ);
 const TRIGGER_FACTOR_LN: f64 = 3.0;
 const ASYMMETRY_RESET_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_THUMBR);
-const FAST_STEP_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR);
+const FAST_STEP_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_EAST);
 
 #[derive(Debug)]
 pub struct JoyState {
