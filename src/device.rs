@@ -15,7 +15,7 @@ pub struct Control {
     run: AtomicBool,
     ends: [AtomicI64; 2],
     target_speeds: [AtomicI64; 2],
-    accel: AtomicI64,
+    accel: f64,
     step: AtomicI64,
 }
 
@@ -25,17 +25,13 @@ impl Control {
             run: AtomicBool::new(true),
             ends: [AtomicI64::new(0), AtomicI64::new(0)],
             target_speeds: [AtomicI64::new(0), AtomicI64::new(0)],
-            accel: AtomicI64::new((accel / CONTROL_FACTOR) as i64),
+            accel,
             step: AtomicI64::new(0),
         }
     }
 
     pub fn run(&self) -> bool {
         self.run.load(Ordering::Relaxed)
-    }
-
-    pub fn accel(&self) -> f64 {
-        self.accel.load(Ordering::Relaxed) as f64 * CONTROL_FACTOR
     }
 
     pub fn end(&self, i: usize) -> i64 {
@@ -123,7 +119,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         dir_pin.write(if dir == 1 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
         let mut velocity_hz = 0.0;
-        let accel = ctrl.accel();
+        let accel = ctrl.accel;
         let mut t = (2.0 / accel).sqrt();
         let start_pos = pos;
         let mut slept = 0.0;
