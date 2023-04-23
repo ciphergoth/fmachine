@@ -1,7 +1,5 @@
 use std::{
-    fs::OpenOptions,
     io::ErrorKind,
-    os::unix::fs::OpenOptionsExt,
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -15,11 +13,7 @@ use tokio::{
 use crate::{device, joystick, Opt};
 
 pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
-    let fd = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NONBLOCK)
-        .open("/dev/input/event0")?;
-    let ev_device = evdev_rs::Device::new_from_file(fd)?;
+    let ev_device = evdev_rs::Device::new_from_path("/dev/input/event0")?;
     let mut joystate = joystick::JoyState::new(opt, ctrl.clone(), &ev_device, SystemTime::now())?;
     println!("{:?}", joystate);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
