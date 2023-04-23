@@ -79,7 +79,6 @@ const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
-const MIN_SPEED: f64 = 1.0;
 
 pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let gpio = Gpio::new()?;
@@ -88,13 +87,23 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
     let mut pos: i64 = 0;
     let mut dir: usize = 0;
     let mut last_step = ctrl.step();
-    let mut time_error = 0.0;
+    let mut time_error = 0.0002;
 
     while ctrl.run() {
+        let pulse_table: Vec<_> = (1..)
+            .map(|d| (2.0 * (d as f64) / ctrl.accel).sqrt())
+            .scan(0.0, |state, t| {
+                let dt = t - *state;
+                *state = t;
+                Some(dt)
+            })
+            .take_while(|&dt| dt >= time_error)
+            .collect();
+        let min_speed = 1.0/pulse_table[0];
         let can_go = (0..2)
             .map(|d| {
                 let dir_mul = (d as i64) * 2 - 1;
-                ctrl.target_speed(d) > MIN_SPEED && (ctrl.end(d) - pos) * dir_mul > MIN_DISTANCE
+                ctrl.target_speed(d) >= min_speed && (ctrl.end(d) - pos) * dir_mul > MIN_DISTANCE
             })
             .collect::<Vec<_>>();
         let other_dir = 1 - dir;
@@ -118,49 +127,38 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         let dir_mul = (dir as i64) * 2 - 1;
         dir_pin.write(if dir == 1 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
-        let mut velocity_hz = 0.0;
-        let accel = ctrl.accel;
-        let mut t = (2.0 / accel).sqrt();
+        let mut velo_step: usize = 1;
         let start_pos = pos;
         let mut slept = 0.0;
         let mut time_clip = false;
         let start = Instant::now();
         loop {
             let end = ctrl.end(dir);
-            let target_speed = ctrl.target_speed(dir);
-            let max_delta_v = accel * t;
-            let delta_v = (target_speed - velocity_hz)
-                .min(max_delta_v)
-                .max(-max_delta_v);
-            let new_vel = velocity_hz + delta_v;
-            let delta_v = if new_vel * new_vel / accel < ((end - pos) * dir_mul * 2) as f64 {
-                delta_v
-            } else {
-                -max_delta_v
-            };
-            velocity_hz += delta_v;
-            if velocity_hz <= MIN_SPEED {
-                break;
+            if dir_mul * (end - pos) <= velo_step.try_into().unwrap() 
+                || pulse_table[velo_step - 1] * ctrl.target_speed(dir) < 1.0 {
+                velo_step -= 1;
+            } else if velo_step == pulse_table.len() {
+                time_clip = true;
+            } else if pulse_table[velo_step] * ctrl.target_speed(dir) >= 1.0 {
+                velo_step += 1
             }
-            t = (1.0 + delta_v * t / 2.0) / velocity_hz;
+            if velo_step == 0 {
+                break
+            }
             pul_pin.set_high();
             thread::sleep(PULSE_DURATION);
             pul_pin.set_low();
-            if t > time_error {
-                let st = t - time_error;
-                thread::sleep(Duration::from_secs_f64(st));
-                slept += st;
-            } else {
-                time_clip = true;
-            }
+            let st = pulse_table[velo_step - 1] - time_error;
+            thread::sleep(Duration::from_secs_f64(st));
+            slept += st;
             pos += dir_mul;
-            //println!("{} {} {}", i, pulse_width, velocity_hz);
         }
         println!(
-            "At stroke end: pos {:8.2} velocity_hz {:8.2} time_clip {}",
-            pos, velocity_hz, time_clip
+            "At stroke end: pos {:8.2} time_clip {}",
+            pos, time_clip
         );
-        if slept > 0.2 {
+        let ticks = (pos - start_pos) * dir_mul;
+        if ticks > 50 {
             let elapsed = start.elapsed().as_secs_f64();
             println!(
                 "elapsed {:8.2} slept {:8.2} diff {:8.2} ratio 1 + {:e}",
@@ -169,7 +167,6 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
                 (elapsed - slept),
                 (elapsed / slept) - 1.0
             );
-            let ticks = (pos - start_pos) * dir_mul;
             time_error = (elapsed - slept) / (ticks as f64);
             println!("ticks {} time error {:8.2}us", ticks, time_error * 1e6);
         }
