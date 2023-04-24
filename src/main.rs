@@ -3,6 +3,7 @@ use std::{sync::Arc, thread};
 use anyhow::Result;
 use clap::Parser;
 use simple_signal::{self, Signal};
+use tokio::sync::mpsc;
 
 mod device;
 mod evloop;
@@ -36,17 +37,22 @@ pub struct Opt {
     report_events: bool,
 }
 
-fn run_evloop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
+fn run_evloop(
+    opt: Opt,
+    ctrl: Arc<device::Control>,
+    status: mpsc::UnboundedReceiver<device::StatusMessage>,
+) -> Result<()> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?
-        .block_on(async { evloop::main_loop(opt, ctrl.clone()).await })?;
+        .block_on(async { evloop::main_loop(opt, ctrl.clone(), status).await })?;
     Ok(())
 }
 
 fn main() -> Result<()> {
     let opt = Opt::parse();
     println!("{:?}", opt);
+    let (sender, receiver) = mpsc::unbounded_channel();
     let ctrl = Arc::new(device::Control::new(opt.max_accel));
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
         let ctrl = ctrl.clone();
@@ -56,9 +62,9 @@ fn main() -> Result<()> {
     });
     let device_thread = {
         let ctrl = ctrl.clone();
-        thread::spawn(move || device::device(ctrl))
+        thread::spawn(move || device::device(ctrl, sender))
     };
-    let evloop_result = run_evloop(opt, ctrl.clone());
+    let evloop_result = run_evloop(opt, ctrl.clone(), receiver);
     println!("Event loop finished");
     ctrl.stop();
     // unwrap() here, otherwise we see

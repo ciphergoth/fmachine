@@ -18,4 +18,4 @@ path = "../evdev-rs"
 
 [dependencies.tokio]
 version = "1.26.0"
-features = ["macros", "net", "rt", "time"]
+features = ["macros", "net", "rt", "time", "sync"]

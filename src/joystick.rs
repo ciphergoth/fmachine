@@ -235,7 +235,7 @@ impl JoyState {
 
     pub fn report(&self) {
         println!(
-            "Joystick state: {:8.2} {:8.2} {:8.2} {:8.2} {}",
+            "Joystick state: pos = {:8.2} stroke_len = {:8.2} asymmetry = {:8.2} speed = {:8.2} drive = {}",
             self.pos.driven,
             self.stroke_len.driven,
             self.asymmetry.driven,

@@ -7,12 +7,17 @@ use std::{
 use anyhow::Result;
 use tokio::{
     io::{unix::AsyncFd, Interest},
+    sync::mpsc,
     time,
 };
 
 use crate::{device, joystick, Opt};
 
-pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
+pub async fn main_loop(
+    opt: Opt,
+    ctrl: Arc<device::Control>,
+    mut status: mpsc::UnboundedReceiver<device::StatusMessage>,
+) -> Result<()> {
     let ev_device = evdev_rs::Device::new_from_path("/dev/input/event0")?;
     let mut joystate = joystick::JoyState::new(opt, ctrl.clone(), &ev_device, SystemTime::now())?;
     println!("{:?}", joystate);
@@ -42,6 +47,9 @@ pub async fn main_loop(opt: Opt, ctrl: Arc<device::Control>) -> Result<()> {
             }
             _ = report.tick() => {
                 joystate.report();
+            }
+            val = status.recv() => {
+                println!("Received status: {:?}", val);
             }
         }
     }

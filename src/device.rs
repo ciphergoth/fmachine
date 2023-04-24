@@ -9,9 +9,13 @@ use std::{
 
 use anyhow::Result;
 use rppal::gpio::{Gpio, Level};
+use tokio::sync::mpsc;
+
+pub const CONTROL_FACTOR: f64 = 0.001;
 
 #[derive(Debug)]
 pub struct Control {
+    // Written by joystick, read by device
     run: AtomicBool,
     ends: [AtomicI64; 2],
     target_speeds: [AtomicI64; 2],
@@ -68,7 +72,8 @@ impl Control {
     }
 }
 
-pub const CONTROL_FACTOR: f64 = 0.001;
+#[derive(Debug)]
+pub struct StatusMessage(i64);
 
 // Gpio uses BCM pin numbering.
 const GPIO_PUL: u8 = 13;
@@ -80,7 +85,7 @@ const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
 
-pub fn device(ctrl: Arc<Control>) -> Result<()> {
+pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) -> Result<()> {
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
@@ -99,7 +104,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             })
             .take_while(|&dt| dt >= time_error)
             .collect();
-        let min_speed = 1.0/pulse_table[0];
+        let min_speed = 1.0 / pulse_table[0];
         let can_go = (0..2)
             .map(|d| {
                 let dir_mul = (d as i64) * 2 - 1;
@@ -153,11 +158,9 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             }
         }
         let elapsed = start.elapsed().as_secs_f64();
+        status.send(StatusMessage(pos))?;
         let ticks = (pos - start_pos) * dir_mul;
-        println!(
-            "At stroke end: pos {:8.2} time_clip {}",
-            pos, time_clip
-        );
+        println!("At stroke end: pos {:8.2} time_clip {}", pos, time_clip);
         if ticks > 50 {
             println!(
                 "elapsed {:8.2} slept {:8.2} diff {:8.2} ratio 1 + {:e}",
