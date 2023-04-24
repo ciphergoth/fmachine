@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use rppal::gpio::{Gpio, Level};
 use tokio::sync::mpsc;
 
@@ -84,8 +84,19 @@ const PULSE_DURATION: Duration = Duration::from_micros(PULSE_DURATION_US);
 const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
+const MIN_PULSE: f64 = 0.00005;
 
 pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) -> Result<()> {
+    let pulse_table: Vec<_> = (1..)
+        .map(|d| (2.0 * (d as f64) / ctrl.accel).sqrt())
+        .scan(0.0, |state, t| {
+            let dt = t - *state;
+            *state = t;
+            Some(dt)
+        })
+        .take_while(|&dt| dt >= MIN_PULSE)
+        .collect();
+
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
@@ -95,15 +106,6 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
     let mut time_error = 0.0002;
 
     while ctrl.run() {
-        let pulse_table: Vec<_> = (1..)
-            .map(|d| (2.0 * (d as f64) / ctrl.accel).sqrt())
-            .scan(0.0, |state, t| {
-                let dt = t - *state;
-                *state = t;
-                Some(dt)
-            })
-            .take_while(|&dt| dt >= time_error)
-            .collect();
         let min_speed = 1.0 / pulse_table[0];
         let can_go = (0..2)
             .map(|d| {
@@ -132,29 +134,43 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
         let dir_mul = (dir as i64) * 2 - 1;
         dir_pin.write(if dir == 1 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
-        let mut velo_step: usize = 1;
+
         let start_pos = pos;
+        // TODO: use a binary search here
+        let max_pulse_ix = pulse_table
+            .iter()
+            .position(|&dt| dt < time_error)
+            .unwrap_or(pulse_table.len() - 1);
+        if max_pulse_ix == 0 {
+            bail!(
+                "time_error = {time_error}, pulse_table[0] = {}",
+                pulse_table[0]
+            );
+        }
+        let mut pulse_ix: usize = 1;
         let mut slept = 0.0;
         let mut time_clip = false;
         let start = Instant::now();
-        while velo_step > 0 {
+        while pulse_ix > 0 {
             pul_pin.set_high();
             thread::sleep(PULSE_DURATION);
             pul_pin.set_low();
-            let st = pulse_table[velo_step - 1] - time_error;
+            let st = pulse_table[pulse_ix - 1] - time_error;
             thread::sleep(Duration::from_secs_f64(st));
             slept += st;
             pos += dir_mul;
             let end = ctrl.end(dir);
             let target_speed = ctrl.target_speed(dir);
-            if dir_mul * (end - pos) <= velo_step.try_into().unwrap() {
-                velo_step -= 1;
-            } else if pulse_table[velo_step - 1] * target_speed < 1.0 {
-                velo_step -= 1;
-            } else if velo_step == pulse_table.len() {
-                time_clip = true;
-            } else if pulse_table[velo_step] * target_speed >= 1.0 {
-                velo_step += 1
+            if dir_mul * (end - pos) < pulse_ix.try_into().unwrap() {
+                pulse_ix -= 1;
+            } else if pulse_table[pulse_ix - 1] * target_speed < 1.0 {
+                pulse_ix -= 1;
+            } else if pulse_table[pulse_ix] * target_speed >= 1.0 {
+                if pulse_ix == max_pulse_ix {
+                    time_clip = true;
+                } else {
+                    pulse_ix += 1
+                }
             }
         }
         let elapsed = start.elapsed().as_secs_f64();
