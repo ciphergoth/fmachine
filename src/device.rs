@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{bail, Result};
+use anyhow::{ensure, Result};
 use rppal::gpio::{Gpio, Level};
 use tokio::sync::mpsc;
 
@@ -141,12 +141,11 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             .iter()
             .position(|&dt| dt < time_error)
             .unwrap_or(pulse_table.len() - 1);
-        if max_pulse_ix == 0 {
-            bail!(
-                "time_error = {time_error}, pulse_table[0] = {}",
-                pulse_table[0]
-            );
-        }
+        ensure!(
+            max_pulse_ix > 0,
+            "time_error = {time_error}, pulse_table[0] = {}",
+            pulse_table[0]
+        );
         let mut pulse_ix: usize = 1;
         let mut slept = 0.0;
         let mut time_clip = false;
