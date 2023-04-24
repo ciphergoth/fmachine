@@ -132,19 +132,7 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
         let mut slept = 0.0;
         let mut time_clip = false;
         let start = Instant::now();
-        loop {
-            let end = ctrl.end(dir);
-            if dir_mul * (end - pos) <= velo_step.try_into().unwrap() 
-                || pulse_table[velo_step - 1] * ctrl.target_speed(dir) < 1.0 {
-                velo_step -= 1;
-            } else if velo_step == pulse_table.len() {
-                time_clip = true;
-            } else if pulse_table[velo_step] * ctrl.target_speed(dir) >= 1.0 {
-                velo_step += 1
-            }
-            if velo_step == 0 {
-                break
-            }
+        while velo_step > 0 {
             pul_pin.set_high();
             thread::sleep(PULSE_DURATION);
             pul_pin.set_low();
@@ -152,14 +140,25 @@ pub fn device(ctrl: Arc<Control>) -> Result<()> {
             thread::sleep(Duration::from_secs_f64(st));
             slept += st;
             pos += dir_mul;
+            let end = ctrl.end(dir);
+            let target_speed = ctrl.target_speed(dir);
+            if dir_mul * (end - pos) <= velo_step.try_into().unwrap() {
+                velo_step -= 1;
+            } else if pulse_table[velo_step - 1] * target_speed < 1.0 {
+                velo_step -= 1;
+            } else if velo_step == pulse_table.len() {
+                time_clip = true;
+            } else if pulse_table[velo_step] * target_speed >= 1.0 {
+                velo_step += 1
+            }
         }
+        let elapsed = start.elapsed().as_secs_f64();
+        let ticks = (pos - start_pos) * dir_mul;
         println!(
             "At stroke end: pos {:8.2} time_clip {}",
             pos, time_clip
         );
-        let ticks = (pos - start_pos) * dir_mul;
         if ticks > 50 {
-            let elapsed = start.elapsed().as_secs_f64();
             println!(
                 "elapsed {:8.2} slept {:8.2} diff {:8.2} ratio 1 + {:e}",
                 elapsed,
