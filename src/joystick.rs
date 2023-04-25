@@ -87,6 +87,13 @@ const TRIGGER_FACTOR_LN: f64 = 3.0;
 const ASYMMETRY_RESET_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_THUMBR);
 const FAST_STEP_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_EAST);
 
+#[derive(Debug, PartialEq, Eq)]
+enum TriggerLockState {
+    Unlocked,
+    LockedTriggerNonzero,
+    LockedTriggerZero,
+}
+
 #[derive(Debug)]
 pub struct JoyState {
     opt: Opt,
@@ -97,6 +104,7 @@ pub struct JoyState {
     speed: Axis,
     trigger_max: i32,
     trigger_ln: f64,
+    trigger_lock: TriggerLockState,
     drive: bool,
     step_mul: i64,
 }
@@ -160,6 +168,7 @@ impl JoyState {
                 .ok_or_else(|| anyhow!("wtf"))?
                 .maximum,
             trigger_ln: 0.0,
+            trigger_lock: TriggerLockState::Unlocked,
             drive: false,
             step_mul: 1,
         })
@@ -210,12 +219,21 @@ impl JoyState {
         match event.event_code {
             TRIGGER_CODE => {
                 if event.value > 0 {
-                    self.trigger_ln = (((event.value as f64) / (self.trigger_max as f64)) - 1.0)
-                        * TRIGGER_FACTOR_LN;
-                    self.drive = true;
+                    if self.trigger_lock != TriggerLockState::LockedTriggerNonzero {
+                        self.trigger_lock = TriggerLockState::Unlocked;
+                        self.trigger_ln = (((event.value as f64) / (self.trigger_max as f64))
+                            - 1.0)
+                            * TRIGGER_FACTOR_LN;
+                        self.drive = true;
+                    }
                 } else {
-                    self.drive = false;
-                    self.ctrl.set_target_speeds(&[0.0, 0.0]);
+                    if self.trigger_lock == TriggerLockState::Unlocked {
+                        self.trigger_ln = -1.0;
+                        self.drive = false;
+                        self.ctrl.set_target_speeds(&[0.0, 0.0]);
+                    } else {
+                        self.trigger_lock = TriggerLockState::LockedTriggerZero;
+                    }
                 }
             }
             ASYMMETRY_RESET_CODE => {
@@ -228,6 +246,14 @@ impl JoyState {
             }
             EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_HAT0X) => {
                 self.ctrl.step_add((event.value as i64) * self.step_mul);
+            }
+            EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) => {
+                if event.value == 1 {
+                    dbg!(&self.trigger_lock, self.trigger_ln);
+                    if self.trigger_ln != -1.0 {
+                        self.trigger_lock = TriggerLockState::LockedTriggerNonzero;
+                    }
+                }
             }
             _ => (),
         }
