@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
+use log::{debug, info};
 use tokio::{
     io::{unix::AsyncFd, Interest},
     sync::mpsc,
@@ -20,10 +21,11 @@ pub async fn main_loop(
 ) -> Result<()> {
     let ev_device = evdev_rs::Device::new_from_path("/dev/input/event0")?;
     let mut joystate = joystick::JoyState::new(opt, ctrl.clone(), &ev_device, SystemTime::now())?;
-    println!("{:?}", joystate);
+    debug!("{:?}", joystate);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)?;
     let mut interval = time::interval(Duration::from_millis(50));
     let mut report = time::interval(Duration::from_secs(1));
+    info!("Entering main loop");
     while ctrl.run() {
         tokio::select! {
             r = afd.readable() => {
@@ -49,10 +51,10 @@ pub async fn main_loop(
                 joystate.report();
             }
             val = status.recv() => {
-                println!("Received status: {:?}", val);
+                debug!("Received status: {:?}", val);
             }
         }
     }
-    println!("Finished joystick loop");
+    debug!("Finished joystick loop");
     Ok(())
 }

@@ -1,7 +1,8 @@
-use std::{sync::Arc, thread};
+use std::{process::ExitCode, sync::Arc, thread};
 
 use anyhow::Result;
 use clap::Parser;
+use log::{debug, error, info};
 use simple_signal::{self, Signal};
 use tokio::sync::mpsc;
 
@@ -49,9 +50,16 @@ fn run_evloop(
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn thread_result_unwrap<T>(r: std::thread::Result<T>) -> T {
+    match r {
+        Ok(v) => v,
+        Err(e) => std::panic::resume_unwind(e),
+    }
+}
+
+fn inner_main() -> Result<()> {
     let opt = Opt::parse();
-    println!("{:?}", opt);
+    debug!("{:?}", opt);
     let (sender, receiver) = mpsc::unbounded_channel();
     let ctrl = Arc::new(device::Control::new(opt.max_accel));
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
@@ -65,13 +73,23 @@ fn main() -> Result<()> {
         thread::spawn(move || device::device(ctrl, sender))
     };
     let evloop_result = run_evloop(opt, ctrl.clone(), receiver);
-    println!("Event loop finished");
+    debug!("Event loop finished");
     ctrl.stop();
-    // unwrap() here, otherwise we see
-    // the trait `std::error::Error` is not implemented for `dyn Any + Send`
-    // `dyn Any + Send` cannot be shared between threads safely
-    device_thread.join().unwrap()?;
+    thread_result_unwrap(device_thread.join())?;
     evloop_result?;
-    println!("Finished successfully");
     Ok(())
+}
+
+fn main() -> ExitCode {
+    env_logger::init();
+    match inner_main() {
+        Ok(()) => {
+            info!("Finished successfully");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            error!("{e:?}");
+            ExitCode::FAILURE
+        }
+    }
 }

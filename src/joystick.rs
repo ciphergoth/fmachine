@@ -2,6 +2,7 @@ use std::{sync::Arc, time::SystemTime};
 
 use anyhow::{anyhow, Result};
 use evdev_rs::{enums, enums::EventCode, DeviceWrapper, InputEvent};
+use log::{debug, info};
 
 use crate::{device, Opt};
 
@@ -186,7 +187,7 @@ impl JoyState {
                 self.pos.spec.max - self.stroke_len.driven,
             );
             let v = (self.speed.driven + self.trigger_ln).exp();
-            //println!("{:?} {}", ends, target_speed);
+            //debug!("{:?} {}", ends, target_speed);
             self.ctrl.set_ends(&[
                 ((self.pos.driven - self.stroke_len.driven) as i64).max(0),
                 ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
@@ -210,7 +211,7 @@ impl JoyState {
 
     pub fn handle_event(&mut self, event: InputEvent) {
         if self.opt.report_events {
-            println!("Event: {:?}", event);
+            info!("Event: {:?}", event);
         }
         self.pos.handle_event(true, &event);
         self.stroke_len.handle_event(self.drive, &event);
@@ -255,7 +256,7 @@ impl JoyState {
     }
 
     pub fn report(&self) {
-        println!(
+        debug!(
             "Joystick state: pos = {:8.2} stroke_len = {:8.2} asymmetry = {:8.2} speed = {:8.2} drive = {}",
             self.pos.driven,
             self.stroke_len.driven,

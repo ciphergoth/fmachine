@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{ensure, Result};
+use log::debug;
 use rppal::gpio::{Gpio, Level};
 use tokio::sync::mpsc;
 
@@ -187,9 +188,9 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
         let elapsed = start.elapsed().as_secs_f64();
         status.send(StatusMessage(pos))?;
         let ticks = (pos - start_pos) * dir_mul;
-        println!("At stroke end: pos {:8.2} time_clip {}", pos, time_clip);
+        debug!("At stroke end: pos {:8.2} time_clip {}", pos, time_clip);
         if ticks > 50 {
-            println!(
+            debug!(
                 "elapsed {:8.2} slept {:8.2} diff {:8.2} ratio 1 + {:e}",
                 elapsed,
                 slept,
@@ -197,10 +198,10 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
                 (elapsed / slept) - 1.0
             );
             time_error = (elapsed - slept) / (ticks as f64);
-            println!("ticks {} time error {:8.2}us", ticks, time_error * 1e6);
+            debug!("ticks {} time error {:8.2}us", ticks, time_error * 1e6);
         }
         last_step = ctrl.step();
     }
-    println!("Finished successfully");
+    debug!("Control loop finished successfully");
     Ok(())
 }
