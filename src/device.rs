@@ -85,18 +85,22 @@ const DIR_SLEEP: Duration = Duration::from_micros(1000);
 const POLL_SLEEP: Duration = Duration::from_micros(50000);
 const MIN_DISTANCE: i64 = 2;
 const MIN_PULSE: f64 = 0.00005;
+const MIN_SPEED: f64 = 1.0;
 
 pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) -> Result<()> {
-    let pulse_table: Vec<_> = (1..)
-        .map(|d| (2.0 * (d as f64) / ctrl.accel).sqrt())
-        .scan(0.0, |state, t| {
-            let dt = t - *state;
-            *state = t;
-            Some(dt)
-        })
-        .take_while(|&dt| dt >= MIN_PULSE)
+    let pulse_table: Vec<_> = std::iter::once(1.0 / MIN_SPEED)
+        .chain(
+            (1..)
+                .map(|d| (2.0 * (d as f64) / ctrl.accel).sqrt())
+                .scan(0.0, |state, t| {
+                    let dt = t - *state;
+                    *state = t;
+                    Some(dt)
+                })
+                .skip_while(|&dt| dt >= 1.0 / MIN_SPEED)
+                .take_while(|&dt| dt >= MIN_PULSE),
+        )
         .collect();
-
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
@@ -106,31 +110,37 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
     let mut time_error = 0.0002;
 
     while ctrl.run() {
-        let min_speed = 1.0 / pulse_table[0];
-        let can_go = (0..2)
+        let target_speeds = (0..2)
             .map(|d| {
                 let dir_mul = (d as i64) * 2 - 1;
-                ctrl.target_speed(d) >= min_speed && (ctrl.end(d) - pos) * dir_mul > MIN_DISTANCE
+                let target_speed = ctrl.target_speed(d);
+                if target_speed >= MIN_SPEED && (ctrl.end(d) - pos) * dir_mul > MIN_DISTANCE {
+                    Some(target_speed)
+                } else {
+                    None
+                }
             })
             .collect::<Vec<_>>();
+        //dbg!(&ctrl, min_speed, dir, pos, &can_go);
         let other_dir = 1 - dir;
-        if !can_go[dir] {
-            if can_go[other_dir] {
-                dir = other_dir;
-            } else {
-                let step = ctrl.step();
-                let d = (step - last_step).signum();
-                dir_pin.write(if d == 1 { Level::Low } else { Level::High });
-                thread::sleep(POLL_SLEEP);
-                if d != 0 {
-                    pul_pin.set_high();
-                    thread::sleep(PULSE_DURATION);
-                    pul_pin.set_low();
-                    last_step += d;
-                }
-                continue;
+        let mut pulse_len = if let Some(ts) = target_speeds[dir] {
+            1.0 / ts
+        } else if let Some(ts) = target_speeds[other_dir] {
+            dir = other_dir;
+            1.0 / ts
+        } else {
+            let step = ctrl.step();
+            let d = (step - last_step).signum();
+            dir_pin.write(if d == 1 { Level::Low } else { Level::High });
+            thread::sleep(POLL_SLEEP);
+            if d != 0 {
+                pul_pin.set_high();
+                thread::sleep(PULSE_DURATION);
+                pul_pin.set_low();
+                last_step += d;
             }
-        }
+            continue;
+        };
         let dir_mul = (dir as i64) * 2 - 1;
         dir_pin.write(if dir == 1 { Level::Low } else { Level::High });
         thread::sleep(DIR_SLEEP);
@@ -151,20 +161,22 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
         let mut time_clip = false;
         let start = Instant::now();
         while pulse_ix > 0 {
+            pulse_len = pulse_len
+                .min(pulse_table[pulse_ix - 1])
+                .max(pulse_table[pulse_ix]);
             pul_pin.set_high();
             thread::sleep(PULSE_DURATION);
             pul_pin.set_low();
-            let st = pulse_table[pulse_ix - 1] - time_error;
-            thread::sleep(Duration::from_secs_f64(st));
-            slept += st;
+            thread::sleep(Duration::from_secs_f64(pulse_len));
+            slept += pulse_len;
             pos += dir_mul;
             let end = ctrl.end(dir);
-            let target_speed = ctrl.target_speed(dir);
+            pulse_len = 1.0 / ctrl.target_speed(dir).max(0.1 * MIN_SPEED);
             if dir_mul * (end - pos) < pulse_ix.try_into().unwrap() {
                 pulse_ix -= 1;
-            } else if pulse_table[pulse_ix - 1] * target_speed < 1.0 {
+            } else if pulse_table[pulse_ix - 1] <= pulse_len {
                 pulse_ix -= 1;
-            } else if pulse_table[pulse_ix] * target_speed >= 1.0 {
+            } else if pulse_table[pulse_ix] > pulse_len {
                 if pulse_ix == max_pulse_ix {
                     time_clip = true;
                 } else {
