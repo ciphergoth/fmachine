@@ -172,9 +172,9 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             pos += dir_mul;
             let end = ctrl.end(dir);
             pulse_len = 1.0 / ctrl.target_speed(dir).max(0.1 * MIN_SPEED);
-            if dir_mul * (end - pos) < pulse_ix.try_into().unwrap() {
-                pulse_ix -= 1;
-            } else if pulse_table[pulse_ix - 1] <= pulse_len {
+            if dir_mul * (end - pos) < pulse_ix.try_into().unwrap()
+                || pulse_table[pulse_ix - 1] <= pulse_len
+            {
                 pulse_ix -= 1;
             } else if pulse_table[pulse_ix] > pulse_len {
                 if pulse_ix == max_pulse_ix {

@@ -226,14 +226,12 @@ impl JoyState {
                             * TRIGGER_FACTOR_LN;
                         self.drive = true;
                     }
+                } else if self.trigger_lock == TriggerLockState::Unlocked {
+                    self.trigger_ln = -1.0;
+                    self.drive = false;
+                    self.ctrl.set_target_speeds(&[0.0, 0.0]);
                 } else {
-                    if self.trigger_lock == TriggerLockState::Unlocked {
-                        self.trigger_ln = -1.0;
-                        self.drive = false;
-                        self.ctrl.set_target_speeds(&[0.0, 0.0]);
-                    } else {
-                        self.trigger_lock = TriggerLockState::LockedTriggerZero;
-                    }
+                    self.trigger_lock = TriggerLockState::LockedTriggerZero;
                 }
             }
             ASYMMETRY_RESET_CODE => {
@@ -248,11 +246,8 @@ impl JoyState {
                 self.ctrl.step_add((event.value as i64) * self.step_mul);
             }
             EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) => {
-                if event.value == 1 {
-                    dbg!(&self.trigger_lock, self.trigger_ln);
-                    if self.trigger_ln != -1.0 {
-                        self.trigger_lock = TriggerLockState::LockedTriggerNonzero;
-                    }
+                if event.value == 1 && self.trigger_ln != -1.0 {
+                    self.trigger_lock = TriggerLockState::LockedTriggerNonzero;
                 }
             }
             _ => (),
