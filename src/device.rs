@@ -14,10 +14,11 @@ use tokio::sync::mpsc;
 
 pub const CONTROL_FACTOR: f64 = 0.001;
 
+// Written by joystick, read by device
 #[derive(Debug)]
 pub struct Control {
-    // Written by joystick, read by device
-    run: AtomicBool,
+    // Arc within an Arc, for the signal_handler crate.
+    pub stop: Arc<AtomicBool>,
     ends: [AtomicI64; 2],
     target_speeds: [AtomicI64; 2],
     accel: f64,
@@ -27,7 +28,7 @@ pub struct Control {
 impl Control {
     pub fn new(accel: f64) -> Self {
         Self {
-            run: AtomicBool::new(true),
+            stop: Arc::new(AtomicBool::new(false)),
             ends: [AtomicI64::new(0), AtomicI64::new(0)],
             target_speeds: [AtomicI64::new(0), AtomicI64::new(0)],
             accel,
@@ -35,8 +36,8 @@ impl Control {
         }
     }
 
-    pub fn run(&self) -> bool {
-        self.run.load(Ordering::Relaxed)
+    pub fn stop(&self) -> bool {
+        self.stop.load(Ordering::SeqCst)
     }
 
     pub fn end(&self, i: usize) -> i64 {
@@ -65,11 +66,6 @@ impl Control {
 
     pub fn step_add(&self, d: i64) {
         self.step.fetch_add(d, Ordering::Relaxed);
-    }
-
-    pub fn stop(&self) {
-        self.run.store(false, Ordering::Relaxed);
-        self.set_target_speeds(&[0.0, 0.0]);
     }
 }
 
@@ -110,7 +106,7 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
     let mut last_step = ctrl.step();
     let mut time_error = 0.0002;
 
-    while ctrl.run() {
+    while !ctrl.stop() {
         let target_speeds = (0..2)
             .map(|d| {
                 let dir_mul = (d as i64) * 2 - 1;
@@ -175,6 +171,7 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             pulse_len = 1.0 / ctrl.target_speed(dir).max(0.1 * MIN_SPEED);
             if dir_mul * (end - pos) < pulse_ix.try_into().unwrap()
                 || pulse_table[pulse_ix - 1] <= pulse_len
+                || ctrl.stop()
             {
                 pulse_ix -= 1;
             } else if pulse_table[pulse_ix] > pulse_len {

@@ -11,7 +11,7 @@ anyhow = "1.0.70"
 env_logger = "0.10.0"
 libc = "0.2.140"
 rppal = "0.14.1"
-simple-signal = "1.1.1"
+signal-hook = "0.3.15"
 
 [dependencies.log]
 version = "0.4.17"

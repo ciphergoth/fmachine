@@ -26,7 +26,7 @@ pub async fn main_loop(
     let mut interval = time::interval(Duration::from_millis(50));
     let mut report = time::interval(Duration::from_secs(1));
     info!("Entering main loop");
-    while ctrl.run() {
+    while !ctrl.stop() {
         tokio::select! {
             r = afd.readable() => {
                 let mut guard = r?;

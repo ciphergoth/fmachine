@@ -3,7 +3,6 @@ use std::{process::ExitCode, sync::Arc, thread};
 use anyhow::Result;
 use clap::Parser;
 use log::{debug, error, info};
-use simple_signal::{self, Signal};
 use tokio::sync::mpsc;
 
 mod device;
@@ -60,21 +59,19 @@ fn thread_result_unwrap<T>(r: std::thread::Result<T>) -> T {
 fn inner_main() -> Result<()> {
     let opt = Opt::parse();
     debug!("{:?}", opt);
-    let (sender, receiver) = mpsc::unbounded_channel();
     let ctrl = Arc::new(device::Control::new(opt.max_accel));
-    simple_signal::set_handler(&[Signal::Int, Signal::Term], {
-        let ctrl = ctrl.clone();
-        move |_| {
-            ctrl.stop();
-        }
-    });
+    for sig in signal_hook::consts::TERM_SIGNALS {
+        signal_hook::flag::register_conditional_default(*sig, ctrl.stop.clone())?;
+        signal_hook::flag::register(*sig, ctrl.stop.clone())?;
+    }
+    let (sender, receiver) = mpsc::unbounded_channel();
     let device_thread = {
         let ctrl = ctrl.clone();
         thread::spawn(move || device::device(ctrl, sender))
     };
     let evloop_result = run_evloop(opt, ctrl.clone(), receiver);
     debug!("Event loop finished");
-    ctrl.stop();
+    ctrl.stop.store(true, std::sync::atomic::Ordering::SeqCst);
     thread_result_unwrap(device_thread.join())?;
     evloop_result?;
     Ok(())
