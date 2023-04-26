@@ -145,8 +145,8 @@ impl JoyState {
             asymmetry: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_RX,
-                    min: -0.5,
-                    max: 0.5,
+                    min: -0.2,
+                    max: 0.2,
                     time_to_max_s: opt.time_to_max_s,
                 },
                 0.0,
@@ -195,10 +195,8 @@ impl JoyState {
                     + ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
             ]);
             self.ctrl.set_target_speeds(&[
-                (v * (1.0 + self.asymmetry.driven).min(1.0) - self.pos.speed())
-                    .min(self.opt.max_speed),
-                (v * (1.0 - self.asymmetry.driven).min(1.0) + self.pos.speed())
-                    .min(self.opt.max_speed),
+                (v / (1.0 + self.asymmetry.driven) - self.pos.speed()).min(self.opt.max_speed),
+                (v / (1.0 - self.asymmetry.driven) + self.pos.speed()).min(self.opt.max_speed),
             ]);
         } else {
             self.stroke_len
