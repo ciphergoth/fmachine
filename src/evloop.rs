@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use log::{debug, error, info};
+use log::{debug, info};
 use tokio::{
     io::{unix::AsyncFd, Interest},
     sync::mpsc,
@@ -54,9 +54,8 @@ pub async fn main_loop(
                 joystate.report();
             }
             val = status.recv() => {
-                match val {
-                    Some(status) => joystate.handle_status(status),
-                    None => error!("Status channel closed unexpectedly")
+                if let Some(status) = val {
+                    joystate.handle_status(status);
                 }
             }
         }
