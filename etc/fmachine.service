@@ -1,0 +1,10 @@
+[Unit]
+Description=Fmachine
+
+[Service]
+ExecStart=/usr/local/bin/fmachine
+User=fmachine
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target
