@@ -145,8 +145,8 @@ impl JoyState {
             asymmetry: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_RX,
-                    min: -0.2,
-                    max: 0.2,
+                    min: -0.8,
+                    max: 0.8,
                     time_to_max_s: config.time_to_max_s,
                 },
                 0.0,
