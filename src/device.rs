@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
 use log::debug;
 use rppal::gpio::{Gpio, Level};
 use tokio::sync::mpsc;
@@ -93,9 +93,9 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             )
             .collect()
     };
-    let gpio = Gpio::new()?;
-    let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
-    let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
+    let gpio = Gpio::new().context("create Gpio object")?;
+    let mut pul_pin = gpio.get(GPIO_PUL).context("get GPIO_PUL")?.into_output();
+    let mut dir_pin = gpio.get(GPIO_DIR).context("get GPIO_PUL")?.into_output();
     let mut pos: i64 = 0;
     let mut dir: usize = 0;
     let mut time_error = 0.0002;
@@ -168,7 +168,9 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             }
         }
         let elapsed = start.elapsed().as_secs_f64();
-        status.send(StatusMessage(pos))?;
+        status
+            .send(StatusMessage(pos))
+            .context("send status message")?;
         let ticks = (pos - start_pos) * dir_mul;
         debug!("At stroke end: pos {:8.2} time_clip {}", pos, time_clip);
         if ticks > 50 {

@@ -34,7 +34,7 @@ impl Axis {
         let event_code = EventCode::EV_ABS(spec.abs);
         let abs_info = ev_device
             .abs_info(&event_code)
-            .ok_or_else(|| anyhow!("wtf"))?;
+            .ok_or_else(|| anyhow!("abs_info failed"))?;
         let per = spec.max / (abs_info.maximum as f64 * spec.time_to_max_s);
         let flat = abs_info.flat * 11 / 10;
         Ok(Axis {
@@ -166,7 +166,7 @@ impl JoyState {
             )?,
             trigger_max: ev_device
                 .abs_info(&TRIGGER_CODE)
-                .ok_or_else(|| anyhow!("wtf"))?
+                .ok_or_else(|| anyhow!("abs_info failed on trigger_max"))?
                 .maximum,
             trigger_ln: 0.0,
             trigger_lock: TriggerLockState::Unlocked,

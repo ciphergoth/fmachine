@@ -1,6 +1,6 @@
 use std::{process::ExitCode, sync::Arc, thread};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use log::{debug, error, info};
 use tokio::sync::mpsc;
@@ -44,8 +44,10 @@ fn run_evloop(
 ) -> Result<()> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()?
-        .block_on(async { evloop::main_loop(opt, ctrl.clone(), status).await })?;
+        .build()
+        .context("build tokio runtime")?
+        .block_on(async { evloop::main_loop(opt, ctrl.clone(), status).await })
+        .context("in tokio runtime")?;
     Ok(())
 }
 
@@ -73,7 +75,7 @@ fn inner_main() -> Result<()> {
     debug!("Event loop finished");
     ctrl.stop.store(true, std::sync::atomic::Ordering::SeqCst);
     thread_result_unwrap(device_thread.join())?;
-    evloop_result?;
+    evloop_result.context("in event loop")?;
     Ok(())
 }
 
