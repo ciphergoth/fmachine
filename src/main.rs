@@ -9,36 +9,29 @@ mod device;
 mod evloop;
 mod joystick;
 
-#[derive(Debug, Parser, Clone, Copy)]
+#[derive(Debug, Parser, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Opt {
-    #[arg(long, default_value = "20000")]
-    max_accel: f64,
-
-    #[arg(long, default_value = "100")]
-    min_speed: f64,
-
-    #[arg(long, default_value = "1000")]
-    init_speed: f64,
-
-    #[arg(long, default_value = "5000")]
-    max_speed: f64,
-
-    #[arg(long, default_value = "40")]
-    min_stroke: i64,
-
-    #[arg(long, default_value = "1340")]
-    max_pos: i64,
-
-    #[arg(long, default_value = "20.0")]
-    time_to_max_s: f64,
+    config_file: std::path::PathBuf,
 
     #[arg(long)]
     report_events: bool,
 }
 
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+pub struct Config {
+    max_accel: f64,
+    min_speed: f64,
+    init_speed: f64,
+    max_speed: f64,
+    min_stroke: i64,
+    max_pos: i64,
+    time_to_max_s: f64,
+    report_events: bool,
+}
+
 fn run_evloop(
-    opt: Opt,
+    config: Config,
     ctrl: Arc<device::Control>,
     status: mpsc::UnboundedReceiver<device::StatusMessage>,
 ) -> Result<()> {
@@ -46,7 +39,7 @@ fn run_evloop(
         .enable_all()
         .build()
         .context("build tokio runtime")?
-        .block_on(async { evloop::main_loop(opt, ctrl.clone(), status).await })
+        .block_on(async { evloop::main_loop(config, ctrl.clone(), status).await })
         .context("in tokio runtime")?;
     Ok(())
 }
@@ -61,7 +54,13 @@ fn thread_result_unwrap<T>(r: std::thread::Result<T>) -> T {
 fn inner_main() -> Result<()> {
     let opt = Opt::parse();
     debug!("{:?}", opt);
-    let ctrl = Arc::new(device::Control::new(opt.max_accel));
+    let mut config: Config =
+        toml::from_str(&std::fs::read_to_string(&opt.config_file).context("reading config file")?)
+            .context("parsing config file")?;
+    config.report_events |= opt.report_events;
+    let config = config;
+    debug!("{:?}", config);
+    let ctrl = Arc::new(device::Control::new(config.max_accel));
     for sig in signal_hook::consts::TERM_SIGNALS {
         signal_hook::flag::register_conditional_default(*sig, ctrl.stop.clone())?;
         signal_hook::flag::register(*sig, ctrl.stop.clone())?;
@@ -71,7 +70,7 @@ fn inner_main() -> Result<()> {
         let ctrl = ctrl.clone();
         thread::spawn(move || device::device(ctrl, sender))
     };
-    let evloop_result = run_evloop(opt, ctrl.clone(), receiver);
+    let evloop_result = run_evloop(config, ctrl.clone(), receiver);
     debug!("Event loop finished");
     ctrl.stop.store(true, std::sync::atomic::Ordering::SeqCst);
     thread_result_unwrap(device_thread.join())?;

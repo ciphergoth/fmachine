@@ -12,16 +12,16 @@ use tokio::{
     time,
 };
 
-use crate::{device, joystick, Opt};
+use crate::{device, joystick, Config};
 
 pub async fn main_loop(
-    opt: Opt,
+    config: Config,
     ctrl: Arc<device::Control>,
     mut status: mpsc::UnboundedReceiver<device::StatusMessage>,
 ) -> Result<()> {
     let ev_device =
         evdev_rs::Device::new_from_path("/dev/input/event0").context("open ev device")?;
-    let mut joystate = joystick::JoyState::new(opt, ctrl.clone(), &ev_device, SystemTime::now())
+    let mut joystate = joystick::JoyState::new(config, ctrl.clone(), &ev_device, SystemTime::now())
         .context("create JoyState")?;
     debug!("{:?}", joystate);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)

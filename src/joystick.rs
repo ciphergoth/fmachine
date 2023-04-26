@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use evdev_rs::{enums, enums::EventCode, DeviceWrapper, InputEvent};
 use log::{debug, info};
 
-use crate::{device, Opt};
+use crate::{device, Config};
 
 #[derive(Debug)]
 struct AxisSpec {
@@ -96,7 +96,7 @@ enum TriggerLockState {
 
 #[derive(Debug)]
 pub struct JoyState {
-    opt: Opt,
+    config: Config,
     ctrl: Arc<device::Control>,
     pos: Axis,
     stroke_len: Axis,
@@ -112,20 +112,20 @@ pub struct JoyState {
 
 impl JoyState {
     pub fn new(
-        opt: Opt,
+        config: Config,
         ctrl: Arc<device::Control>,
         ev_device: &evdev_rs::Device,
         now: SystemTime,
     ) -> Result<JoyState> {
         Ok(JoyState {
-            opt,
+            config,
             ctrl,
             pos: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_X,
-                    min: opt.min_stroke as f64,
-                    max: (opt.max_pos - opt.min_stroke) as f64,
-                    time_to_max_s: opt.time_to_max_s,
+                    min: config.min_stroke as f64,
+                    max: (config.max_pos - config.min_stroke) as f64,
+                    time_to_max_s: config.time_to_max_s,
                 },
                 0.0,
                 ev_device,
@@ -134,11 +134,11 @@ impl JoyState {
             stroke_len: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_Y,
-                    min: opt.min_stroke as f64,
-                    max: (opt.max_pos as f64) / 2.0,
-                    time_to_max_s: -opt.time_to_max_s,
+                    min: config.min_stroke as f64,
+                    max: (config.max_pos as f64) / 2.0,
+                    time_to_max_s: -config.time_to_max_s,
                 },
-                opt.min_stroke as f64,
+                config.min_stroke as f64,
                 ev_device,
                 now,
             )?,
@@ -147,7 +147,7 @@ impl JoyState {
                     abs: enums::EV_ABS::ABS_RX,
                     min: -0.2,
                     max: 0.2,
-                    time_to_max_s: opt.time_to_max_s,
+                    time_to_max_s: config.time_to_max_s,
                 },
                 0.0,
                 ev_device,
@@ -156,11 +156,11 @@ impl JoyState {
             speed: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_RY,
-                    min: opt.min_speed.ln(),
-                    max: opt.max_speed.ln(),
-                    time_to_max_s: -opt.time_to_max_s,
+                    min: config.min_speed.ln(),
+                    max: config.max_speed.ln(),
+                    time_to_max_s: -config.time_to_max_s,
                 },
-                opt.init_speed.ln(),
+                config.init_speed.ln(),
                 ev_device,
                 now,
             )?,
@@ -192,11 +192,11 @@ impl JoyState {
             self.ctrl.set_ends(&[
                 self.pos_offset + ((self.pos.driven - self.stroke_len.driven) as i64).max(0),
                 self.pos_offset
-                    + ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
+                    + ((self.pos.driven + self.stroke_len.driven) as i64).min(self.config.max_pos),
             ]);
             self.ctrl.set_target_speeds(&[
-                (v / (1.0 + self.asymmetry.driven) - self.pos.speed()).min(self.opt.max_speed),
-                (v / (1.0 - self.asymmetry.driven) + self.pos.speed()).min(self.opt.max_speed),
+                (v / (1.0 + self.asymmetry.driven) - self.pos.speed()).min(self.config.max_speed),
+                (v / (1.0 - self.asymmetry.driven) + self.pos.speed()).min(self.config.max_speed),
             ]);
         } else {
             self.stroke_len
@@ -204,14 +204,14 @@ impl JoyState {
             self.stroke_len
                 .clamp(0.0, self.pos.spec.max - self.pos.driven);
             self.ctrl
-                .set_ends(&[self.pos_offset, self.pos_offset + self.opt.max_pos]);
+                .set_ends(&[self.pos_offset, self.pos_offset + self.config.max_pos]);
             self.ctrl
                 .set_target_speeds(&[-self.pos.speed(), self.pos.speed()]);
         }
     }
 
     pub fn handle_event(&mut self, event: InputEvent) {
-        if self.opt.report_events {
+        if self.config.report_events {
             info!("Event: {:?}", event);
         }
         self.pos.handle_event(true, &event);
@@ -248,7 +248,7 @@ impl JoyState {
                     self.pos.driven -= dp as f64;
                 }
                 -1 => {
-                    let dp = self.opt.max_pos + self.pos_offset - self.last_stop;
+                    let dp = self.config.max_pos + self.pos_offset - self.last_stop;
                     self.pos_offset -= dp;
                     self.pos.driven += dp as f64;
                 }

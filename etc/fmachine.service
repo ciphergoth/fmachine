@@ -2,7 +2,7 @@
 Description=Fmachine
 
 [Service]
-ExecStart=/usr/local/bin/fmachine
+ExecStart=/usr/local/bin/fmachine /etc/fmachine.conf
 User=fmachine
 Environment=RUST_LOG=info
 

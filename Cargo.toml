@@ -12,10 +12,7 @@ env_logger = "0.10.0"
 libc = "0.2.140"
 rppal = "0.14.1"
 signal-hook = "0.3.15"
-
-[dependencies.log]
-version = "0.4.17"
-features = ["std"]
+toml = "0.7.3"
 
 [dependencies.clap]
 version = "4.1.13"
@@ -23,6 +20,14 @@ features = ["derive"]
 
 [dependencies.evdev-rs]
 path = "../evdev-rs"
+
+[dependencies.log]
+version = "0.4.17"
+features = ["std"]
+
+[dependencies.serde]
+version = "1.0.160"
+features = ["std", "alloc", "derive"]
 
 [dependencies.tokio]
 version = "1.26.0"
