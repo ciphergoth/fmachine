@@ -22,7 +22,6 @@ pub struct Control {
     ends: [AtomicI64; 2],
     target_speeds: [AtomicI64; 2],
     accel: f64,
-    step: AtomicI64,
 }
 
 impl Control {
@@ -32,7 +31,6 @@ impl Control {
             ends: [AtomicI64::new(0), AtomicI64::new(0)],
             target_speeds: [AtomicI64::new(0), AtomicI64::new(0)],
             accel,
-            step: AtomicI64::new(0),
         }
     }
 
@@ -59,18 +57,10 @@ impl Control {
             target_speed.store((value / CONTROL_FACTOR) as i64, Ordering::Relaxed);
         }
     }
-
-    pub fn step(&self) -> i64 {
-        self.step.load(Ordering::Relaxed)
-    }
-
-    pub fn step_add(&self, d: i64) {
-        self.step.fetch_add(d, Ordering::Relaxed);
-    }
 }
 
 #[derive(Debug)]
-pub struct StatusMessage(i64);
+pub struct StatusMessage(pub i64);
 
 // Gpio uses BCM pin numbering.
 const GPIO_PUL: u8 = 13;
@@ -108,7 +98,6 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
     let mut pos: i64 = 0;
     let mut dir: usize = 0;
-    let mut last_step = ctrl.step();
     let mut time_error = 0.0002;
 
     while !ctrl.stop() {
@@ -131,16 +120,7 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             dir = other_dir;
             1.0 / ts
         } else {
-            let step = ctrl.step();
-            let d = (step - last_step).signum();
-            dir_pin.write(if d == 1 { Level::Low } else { Level::High });
             thread::sleep(POLL_SLEEP);
-            if d != 0 {
-                pul_pin.set_high();
-                thread::sleep(PULSE_DURATION);
-                pul_pin.set_low();
-                last_step += d;
-            }
             continue;
         };
         let dir_mul = (dir as i64) * 2 - 1;
@@ -202,7 +182,6 @@ pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) 
             time_error = (elapsed - slept) / (ticks as f64);
             debug!("ticks {} time error {:8.2}us", ticks, time_error * 1e6);
         }
-        last_step = ctrl.step();
     }
     debug!("Control loop finished successfully");
     Ok(())

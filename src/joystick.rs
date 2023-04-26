@@ -86,7 +86,6 @@ impl Axis {
 const TRIGGER_CODE: EventCode = EventCode::EV_ABS(enums::EV_ABS::ABS_RZ);
 const TRIGGER_FACTOR_LN: f64 = 3.0;
 const ASYMMETRY_RESET_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_THUMBR);
-const FAST_STEP_CODE: EventCode = EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_EAST);
 
 #[derive(Debug, PartialEq, Eq)]
 enum TriggerLockState {
@@ -107,7 +106,8 @@ pub struct JoyState {
     trigger_ln: f64,
     trigger_lock: TriggerLockState,
     drive: bool,
-    step_mul: i64,
+    last_stop: i64,
+    pos_offset: i64,
 }
 
 impl JoyState {
@@ -171,7 +171,8 @@ impl JoyState {
             trigger_ln: 0.0,
             trigger_lock: TriggerLockState::Unlocked,
             drive: false,
-            step_mul: 1,
+            last_stop: 0,
+            pos_offset: 0,
         })
     }
 
@@ -189,8 +190,9 @@ impl JoyState {
             let v = (self.speed.driven + self.trigger_ln).exp();
             //debug!("{:?} {}", ends, target_speed);
             self.ctrl.set_ends(&[
-                ((self.pos.driven - self.stroke_len.driven) as i64).max(0),
-                ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
+                self.pos_offset + ((self.pos.driven - self.stroke_len.driven) as i64).max(0),
+                self.pos_offset
+                    + ((self.pos.driven + self.stroke_len.driven) as i64).min(self.opt.max_pos),
             ]);
             self.ctrl.set_target_speeds(&[
                 (v * (1.0 + self.asymmetry.driven).min(1.0) - self.pos.speed())
@@ -203,7 +205,8 @@ impl JoyState {
                 .clamp(0.0, self.pos.driven - self.pos.spec.min);
             self.stroke_len
                 .clamp(0.0, self.pos.spec.max - self.pos.driven);
-            self.ctrl.set_ends(&[0, self.opt.max_pos]);
+            self.ctrl
+                .set_ends(&[self.pos_offset, self.pos_offset + self.opt.max_pos]);
             self.ctrl
                 .set_target_speeds(&[-self.pos.speed(), self.pos.speed()]);
         }
@@ -240,12 +243,21 @@ impl JoyState {
                     self.asymmetry.driven = 0.0;
                 }
             }
-            FAST_STEP_CODE => {
-                self.step_mul = if event.value > 0 { 10 } else { 1 };
-            }
-            EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_HAT0X) => {
-                self.ctrl.step_add((event.value as i64) * self.step_mul);
-            }
+            EventCode::EV_ABS(evdev_rs::enums::EV_ABS::ABS_HAT0X) => match event.value {
+                1 => {
+                    let dp = self.last_stop - self.pos_offset;
+                    self.pos_offset += dp;
+                    self.pos.driven -= dp as f64;
+                }
+                -1 => {
+                    let dp = self.opt.max_pos + self.pos_offset - self.last_stop;
+                    self.pos_offset -= dp;
+                    self.pos.driven += dp as f64;
+                }
+                v => {
+                    info!("Unexpected HAT0X value: {v}");
+                }
+            },
             EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) => {
                 if event.value == 1 && self.trigger_ln != -1.0 {
                     self.trigger_lock = TriggerLockState::LockedTriggerNonzero;
@@ -253,6 +265,11 @@ impl JoyState {
             }
             _ => (),
         }
+    }
+
+    pub fn handle_status(&mut self, status: device::StatusMessage) {
+        debug!("{status:?}");
+        self.last_stop = status.0;
     }
 
     pub fn report(&self) {
