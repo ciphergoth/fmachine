@@ -85,19 +85,24 @@ const MIN_PULSE: f64 = 0.00005;
 const MIN_SPEED: f64 = 1.0;
 
 pub fn device(ctrl: Arc<Control>, status: mpsc::UnboundedSender<StatusMessage>) -> Result<()> {
-    let pulse_table: Vec<_> = std::iter::once(1.0 / MIN_SPEED)
-        .chain(
-            (1..)
-                .map(|d| (2.0 * (d as f64) / ctrl.accel).sqrt())
-                .scan(0.0, |state, t| {
-                    let dt = t - *state;
-                    *state = t;
-                    Some(dt)
-                })
-                .skip_while(|&dt| dt >= 1.0 / MIN_SPEED)
-                .take_while(|&dt| dt >= MIN_PULSE),
-        )
-        .collect();
+    let pulse_table: Vec<_> = {
+        let a = 2.0 / ctrl.accel;
+        std::iter::once(1.0 / MIN_SPEED)
+            .chain(
+                (1..)
+                    .map(|d| (a * (d as f64)).sqrt())
+                    .scan(0.0, |state, t| {
+                        // let dt = t - *state;
+                        // https://stackoverflow.com/questions/32444817/numerically-stable-evaluation-of-sqrtxa-sqrtx
+                        let dt = a / (t + *state);
+                        *state = t;
+                        Some(dt)
+                    })
+                    .skip_while(|&dt| dt >= 1.0 / MIN_SPEED)
+                    .take_while(|&dt| dt >= MIN_PULSE),
+            )
+            .collect()
+    };
     let gpio = Gpio::new()?;
     let mut pul_pin = gpio.get(GPIO_PUL)?.into_output();
     let mut dir_pin = gpio.get(GPIO_DIR)?.into_output();
