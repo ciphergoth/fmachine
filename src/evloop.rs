@@ -23,7 +23,6 @@ pub async fn main_loop(
         evdev_rs::Device::new_from_path("/dev/input/event0").context("open ev device")?;
     let mut joystate = joystick::JoyState::new(config, ctrl.clone(), &ev_device, SystemTime::now())
         .context("create JoyState")?;
-    debug!("{:?}", joystate);
     let afd = AsyncFd::with_interest(ev_device, Interest::READABLE)
         .context("async wrap for ev device")?;
     let mut interval = time::interval(Duration::from_millis(50));

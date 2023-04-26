@@ -252,9 +252,7 @@ impl JoyState {
                     self.pos_offset -= dp;
                     self.pos.driven += dp as f64;
                 }
-                v => {
-                    info!("Unexpected HAT0X value: {v}");
-                }
+                _ => (),
             },
             EventCode::EV_KEY(evdev_rs::enums::EV_KEY::BTN_TR) => {
                 if event.value == 1 && self.trigger_ln != -1.0 {
