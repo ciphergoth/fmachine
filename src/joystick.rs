@@ -123,8 +123,8 @@ impl JoyState {
             pos: Axis::new(
                 AxisSpec {
                     abs: enums::EV_ABS::ABS_X,
-                    min: config.min_stroke as f64,
-                    max: (config.max_pos - config.min_stroke) as f64,
+                    min: 0.0,
+                    max: config.max_pos as f64,
                     time_to_max_s: config.time_to_max_s,
                 },
                 0.0,
