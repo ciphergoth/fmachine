@@ -19,7 +19,8 @@ version = "4.1.13"
 features = ["derive"]
 
 [dependencies.evdev-rs]
-path = "../evdev-rs"
+git = "https://github.com/ndesh26/evdev-rs"
+rev= "c288405aa06bb0875c6d78685828d2dae74f31c9"
 
 [dependencies.log]
 version = "0.4.17"
