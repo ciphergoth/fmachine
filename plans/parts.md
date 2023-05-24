@@ -7,7 +7,7 @@
 ## Parts
 
 * Plywood - try 3/8 in
-* Power supply https://www.amazon.com/dp/B07G21P3KD
+* Power supply https://www.amazon.com/COOLM-Switching-100-240V-5-5x2-5mm-Injector/dp/B083R7H6FD
 * Power socket https://www.amazon.com/dp/B08271YLXZ/
 * DC-DC converter https://www.amazon.com/GERI-Converter-Module-8-50V-Output/dp/B00W52N8XW/
 * Stepper driver DM542 https://www.amazon.com/dp/B07YWZRXGR/
