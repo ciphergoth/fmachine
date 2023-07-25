@@ -65,28 +65,29 @@ def cut_elements() -> Iterator[svg.Element]:
         y=0,
         width=102,
         height=610,
-        stroke="black",
-        fill="transparent",
         rx=5,
     )
 
+
 def draw_elements(w: float, h: float) -> Iterator[svg.Element]:
-    for x in range(0, int(w+1), 20):
+    for x in range(0, int(w + 1), 20):
         yield svg.Path(d=[svg.M(x, 5), svg.V(h)])
-    for y in range(0, int(h+1), 20):
+    for y in range(0, int(h + 1), 20):
         yield svg.Path(d=[svg.M(5, y), svg.H(w)])
+
 
 def elements(w: float, h: float) -> Iterator[svg.Element]:
     yield svg.G(
-        style="stroke:red; fill:transparent; stroke-width: 0.1",
-        elements=list(draw_elements(w, h)))
+        style="stroke:red; stroke-width: 0.1;", elements=list(draw_elements(w, h))
+    )
     yield svg.G(
-        style="stroke:black; fill:transparent; stroke-width: 0.3",
-                transform=[
-                    svg.Translate(10, 10),
-                ],
-                elements=list(cut_elements()),
-            )
+        style="stroke:black; stroke-width: 0.3;",
+        transform=[
+            svg.Translate(10, 10),
+        ],
+        elements=list(cut_elements()),
+    )
+
 
 def draw() -> svg.SVG:
     w = 122
@@ -95,6 +96,7 @@ def draw() -> svg.SVG:
         width=svg.Length(w, "mm"),
         height=svg.Length(h, "mm"),
         viewBox=svg.ViewBoxSpec(0, 0, w, h),
+        style="fill:transparent;",
         elements=list(elements(w, h)),
     )
 
