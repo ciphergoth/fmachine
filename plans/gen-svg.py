@@ -56,8 +56,8 @@ def cut_elements() -> Iterator[svg.Element]:
     yield from mounting_holes(20, 514, 0, 112, 4.5)
     # Power cord
     yield from mounting_holes(20, 590, 0, 0, 10.8)
-    # FIXME Pibow
-    yield from mounting_holes(65, 550, 60, 90, 3)
+    # Pibow
+    yield from mounting_holes(65, 550, 57.75, 90.75, 3)
 
     # Whole board
     yield svg.Rect(
@@ -90,8 +90,8 @@ def elements(w: float, h: float) -> Iterator[svg.Element]:
 
 
 def draw() -> svg.SVG:
-    w = 122
-    h = 630
+    w = int(0.5 + 20 + 25.4*4)
+    h = int(0.5 + 20 + 25.4*24)
     return svg.SVG(
         width=svg.Length(w, "mm"),
         height=svg.Length(h, "mm"),
