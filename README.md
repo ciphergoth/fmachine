@@ -12,10 +12,15 @@ for easy construction.
 
 ## Warning: very early stage project
 
-As of the time of writing...
+I have built a fuck machine based on the plans and software in this repo; it
+works very well and people love it.
+
+That said, as of the time of writing, this is a PRE-RELEASE, ALPHA-QUALITY
+PROJECT.
 
 * The only one of these machines that has ever been built is my own.
-* As a result, these instructions are completely untested.
+* These instructions are therefore completely untested.
+* They are also pretty incomplete.
 * There are many places where I made a decision which was fairly idiosyncratic
   and contingent on what I happened to have to hand. I've tried to describe what
   I built but you should almost certainly try different choices in several places.
@@ -28,7 +33,7 @@ As of the time of writing...
 * Until I can test this for you, you're committing to an iterative process: try
   the current [`gen-svg`](plans/gen-svg.py) to build laser cutting plans, find
   out what's wrong with the resulting cut, fix it and try again.
-* If you get it working, please submit a pull request with a working plan!
+* If you get it working, please submit a pull request with a working plan.
 
 ## Introduction
 
@@ -59,9 +64,9 @@ abilities to actually build it. This design is the result - and hopefully it'll
 be even easier for you to build now I've written the software and paved the way.
 I've tried this on five different lovers and myself, and people like it!
 
-## Design
+## Build instructions
 
-
+The beginnings of instructions on how to build this are in [plans/parts.md](plans/parts.md)
 
 Obviously this project is nothing to do with my employer.
 
