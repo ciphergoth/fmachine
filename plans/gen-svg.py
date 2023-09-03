@@ -22,16 +22,26 @@ def mounting_holes(
 
 def shaft_axis() -> Iterator[svg.Element]:
     # Brushes SCS-12UU
+    # L = 39
     for p in [20, 460]:
         yield from mounting_holes(0, p, 30.5, 26, 5)
-    # Flange 61-6, measurement G
+    # Pretty sure the metric specs are the authoritative ones
+    # https://keesafety.co.uk/resources/downloads
+    # https://keesafety.co.uk/media/3b3apds4/safety_components_catalogue_v10_0723_web.pdf
+    # Flange 61-6, measurement G - what I used
     spacing = 64 / math.sqrt(2)
-    yield from mounting_holes(0, 330, spacing, spacing, 6)
+    # Flange 61-5, measurement G - what you should use
+    # spacing = 57 / math.sqrt(2)
+    yield from mounting_holes(0, 330, spacing, spacing, 6.5)
 
 
 def belt_axis() -> Iterator[svg.Element]:
-    # Idler pulley - FIXME these are all invented
-    yield from mounting_holes(0, 90, 30, 30, 5)
+    # Idler pulley
+    # Edge of top brush + 2mm clearance + radius of wheel
+    # + distance from topmost hole to second holes
+    # + 1/2 distance between holes
+    top = 39.5 + 2 + 11 + 32 + 10
+    yield from mounting_holes(0, top, 20, 20, 5.1)
     # Stepper motor 23HS30-3004S
     # What does 4-Ø5.2 mean?
     steppery = 410
@@ -70,15 +80,16 @@ def cut_elements() -> Iterator[svg.Element]:
 
 
 def draw_elements(w: float, h: float) -> Iterator[svg.Element]:
-    for x in range(0, int(w + 1), 20):
-        yield svg.Path(d=[svg.M(x, 5), svg.V(h)])
-    for y in range(0, int(h + 1), 20):
-        yield svg.Path(d=[svg.M(5, y), svg.H(w)])
+    for x in range(100, int(w*10 + 1), 254):
+        yield svg.Path(d=[svg.M(x/10, 5), svg.V(h)])
+    for y in range(100, int(h*10 + 1), 254):
+        yield svg.Path(d=[svg.M(5, y/10), svg.H(w)])
 
 
 def elements(w: float, h: float) -> Iterator[svg.Element]:
     yield svg.G(
-        style="stroke:red; stroke-width: 0.1;", elements=list(draw_elements(w, h))
+        style="stroke:red; stroke-width: 0.1;",
+        elements=list(draw_elements(w, h))
     )
     yield svg.G(
         style="stroke:black; stroke-width: 0.3;",
