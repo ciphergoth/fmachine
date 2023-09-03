@@ -22,8 +22,8 @@ PROJECT.
 * These instructions are therefore completely untested.
 * They are also pretty incomplete.
 * There are many places where I made a decision which was fairly idiosyncratic
-  and contingent on what I happened to have to hand. I've tried to describe what
-  I built but you should almost certainly try different choices in several places.
+  and contingent on what I happened to have to hand. These plans are a mixture
+  of what I did and what I didn't do but I think you should do.
 * I also don't have a super clear idea what it costs - I think it's only a few
   hundred dollars but I'm not sure. Hopefully a lot cheaper for you than for me
   since you won't take my wrong turns.
@@ -64,23 +64,18 @@ abilities to actually build it. This design is the result - and hopefully it'll
 be even easier for you to build now I've written the software and paved the way.
 I've tried this on five different lovers and myself, and people like it!
 
-## Build instructions
+## Instructions
 
-The beginnings of instructions on how to build this are in [plans/parts.md](plans/parts.md)
+* [Very incomplete instructions on how to build it](plans/instructions.md)
+* [How to use it](plans/using.md)
 
-Obviously this project is nothing to do with my employer.
+## License
 
-#### License
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT
+license](LICENSE-MIT) at your option.
 
-<sup>
-Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
-2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
-</sup>
-
-<br>
-
-<sub>
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in fmachine by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
-</sub>
+
+Obviously this project is nothing to do with my employer.
