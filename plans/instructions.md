@@ -72,13 +72,12 @@ sudo apt install git
 git clone https://github.com/ciphergoth/fmachine.git
 cd fmachine
 ./install-prerequisites.sh
-# FIXME: pip install -r requirements.txt
 ./plans/gen-svg.py /tmp/fmachine.svg
 cargo build --release
 sudo ./install.sh
 ```
 
-* Use scp to make a local copy /tmp/fmachine.svg
+* Use scp to make a local copy of `/tmp/fmachine.svg`
 * Run `sudo shutdown -h now`
 * Disconnect power
 * Construct the frame as per the photograph
